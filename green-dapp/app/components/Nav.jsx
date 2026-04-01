@@ -98,11 +98,11 @@ export default function Nav() {
         <Link href="/" className="nav-link">Dashboard</Link>
         <Link href="/analytics" className="nav-link">Analytics</Link>
         <Link href="/community" className="nav-link">Community</Link>
+        <Link href="/shop" className="nav-link">Shop</Link>
         <Link href="/chat" className="nav-link" style={{ position: "relative" }}>
           Chat
           {chatUnread > 0 ? <span style={chatBadge}>{chatUnread > 99 ? "99+" : chatUnread}</span> : null}
         </Link>
-        <Link href="/shop" className="nav-link">Shop</Link>
         <Link href="/profile" className="nav-link">Profile</Link>
         <Link href="/avatar" className="nav-link">Avatar</Link>
 
