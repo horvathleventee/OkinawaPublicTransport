@@ -36,6 +36,58 @@ function formatTradeStatus(status) {
   return raw.charAt(0).toUpperCase() + raw.slice(1);
 }
 
+function getTradeStatusVisual(status) {
+  const raw = String(status || "").trim().toLowerCase();
+  if (raw === "accepted") {
+    return {
+      icon: "✓",
+      style: {
+        background: "rgba(34,197,94,.14)",
+        border: "1px solid rgba(34,197,94,.28)",
+        color: "rgba(220,252,231,.95)",
+      },
+    };
+  }
+  if (raw === "rejected") {
+    return {
+      icon: "×",
+      style: {
+        background: "rgba(239,68,68,.14)",
+        border: "1px solid rgba(239,68,68,.28)",
+        color: "rgba(254,226,226,.95)",
+      },
+    };
+  }
+  if (raw === "cancelled") {
+    return {
+      icon: "−",
+      style: {
+        background: "rgba(148,163,184,.12)",
+        border: "1px solid rgba(148,163,184,.22)",
+        color: "rgba(226,232,240,.94)",
+      },
+    };
+  }
+  if (raw === "pending" || raw === "open") {
+    return {
+      icon: "•",
+      style: {
+        background: "rgba(59,130,246,.14)",
+        border: "1px solid rgba(59,130,246,.22)",
+        color: "rgba(219,234,254,.95)",
+      },
+    };
+  }
+  return {
+    icon: "•",
+    style: {
+      background: "rgba(255,255,255,.06)",
+      border: "1px solid rgba(255,255,255,.12)",
+      color: "rgba(255,255,255,.9)",
+    },
+  };
+}
+
 function formatTradeDate(value) {
   if (!value) return "";
   const date = new Date(value);
@@ -1075,18 +1127,24 @@ export default function ShopPage() {
                             />
                           </div>
                         ) : null}
-                        <div>
-                          <div style={{ fontWeight: 800 }}>{entry.title}</div>
-                          <div className="small">{entry.subtitle}</div>
-                          {entry.updatedAt ? (
+                          <div>
+                            <div style={{ fontWeight: 800 }}>{entry.title}</div>
+                            <div className="small">{entry.subtitle}</div>
+                            {entry.updatedAt ? (
                             <div className="small" style={{ marginTop: 4 }}>
                               {formatTradeDate(entry.updatedAt)}
                             </div>
                           ) : null}
+                          </div>
                         </div>
-                      </div>
-                      <div className="badge" style={statusBadge}>
-                        {formatTradeStatus(entry.status)}
+                      <div
+                        className="badge"
+                        style={{
+                          ...statusBadge,
+                          ...getTradeStatusVisual(entry.status).style,
+                        }}
+                      >
+                        {getTradeStatusVisual(entry.status).icon} {formatTradeStatus(entry.status)}
                       </div>
                     </div>
                   ))
