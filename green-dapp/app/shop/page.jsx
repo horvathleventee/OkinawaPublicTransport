@@ -36,6 +36,19 @@ function formatTradeStatus(status) {
   return raw.charAt(0).toUpperCase() + raw.slice(1);
 }
 
+function formatTradeDate(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString("hu-HU", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 async function fetchJson(url, options = {}) {
   const res = await fetch(url, options);
   const text = await res.text();
@@ -186,6 +199,65 @@ export default function ShopPage() {
     const ownedSet = new Set(ownedOnChainIds);
     return items.filter((item) => ownedSet.has(item.id));
   }, [items, ownedOnChainIds]);
+  const activeMyListings = useMemo(
+    () => tradeHub.myListings.filter((listing) => listing.status === "open"),
+    [tradeHub.myListings]
+  );
+  const activeOutgoingOffers = useMemo(
+    () => tradeHub.outgoingOffers.filter((offer) => offer.status === "pending"),
+    [tradeHub.outgoingOffers]
+  );
+  const tradeHistory = useMemo(() => {
+    const historyEntries = [];
+
+    for (const listing of tradeHub.myListings) {
+      if (listing.status !== "open") {
+        historyEntries.push({
+          id: `listing-${listing.id}`,
+          kind: "listing",
+          status: listing.status,
+          updatedAt: listing.updatedAt || listing.createdAt || null,
+          title: listing.item?.name || listing.itemId,
+          subtitle: listing.note || "No listing note.",
+          image: listing.item?.image || "",
+        });
+      }
+
+      for (const offer of listing.offers || []) {
+        if (offer.status !== "pending") {
+          historyEntries.push({
+            id: `incoming-${offer.id}`,
+            kind: "incoming",
+            status: offer.status,
+            updatedAt: offer.updatedAt || offer.createdAt || listing.updatedAt || null,
+            title: `${offer.offeredItem?.name || offer.offeredItemId} from ${offer.offerer?.customDisplayName || offer.offererWallet}`,
+            subtitle: offer.note || "No note.",
+            image: offer.offeredItem?.image || "",
+          });
+        }
+      }
+    }
+
+    for (const offer of tradeHub.outgoingOffers) {
+      if (offer.status !== "pending") {
+        historyEntries.push({
+          id: `outgoing-${offer.id}`,
+          kind: "outgoing",
+          status: offer.status,
+          updatedAt: offer.updatedAt || offer.createdAt || null,
+          title: `${offer.offeredItem?.name || offer.offeredItemId} -> ${offer.listing?.item?.name || offer.listingId}`,
+          subtitle: offer.note || "No note.",
+          image: offer.offeredItem?.image || "",
+        });
+      }
+    }
+
+    return historyEntries.sort((a, b) => {
+      const aTime = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+      const bTime = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+      return bTime - aTime;
+    });
+  }, [tradeHub.myListings, tradeHub.outgoingOffers]);
 
   async function buy(item) {
     setErr("");
@@ -844,7 +916,7 @@ export default function ShopPage() {
             <div className="card-inner">
               <div className="section-title">My Listings & Offers</div>
               <div style={{ display: "grid", gap: 12, marginTop: 12 }}>
-                {tradeHub.myListings.map((listing) => (
+                {activeMyListings.map((listing) => (
                   <div key={listing.id} style={tradeCard}>
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
                       <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
@@ -939,12 +1011,12 @@ export default function ShopPage() {
                   </div>
                 ))}
 
-                {tradeHub.myListings.length === 0 ? <div className="small">You do not have any active listings.</div> : null}
+                {activeMyListings.length === 0 ? <div className="small">You do not have any active listings.</div> : null}
 
-                {tradeHub.outgoingOffers.length > 0 ? (
+                {activeOutgoingOffers.length > 0 ? (
                   <div style={{ display: "grid", gap: 10 }}>
                     <div className="section-title" style={{ fontSize: 18 }}>Outgoing Offers</div>
-                    {tradeHub.outgoingOffers.map((offer) => (
+                    {activeOutgoingOffers.map((offer) => (
                       <div key={offer.id} style={tradeOfferCard}>
                         <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
                           {offer.offeredItem?.image ? (
@@ -973,6 +1045,52 @@ export default function ShopPage() {
                     ))}
                   </div>
                 ) : null}
+              </div>
+            </div>
+          </div>
+
+          <div className="card" style={{ gridColumn: "span 12" }}>
+            <div className="accent cyan" />
+            <div className="card-inner">
+              <div className="section-title">Trade History</div>
+              <div className="small" style={{ marginTop: 8 }}>
+                Completed, rejected and cancelled trade events live here with their latest timestamps.
+              </div>
+              <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
+                {tradeHistory.length === 0 ? (
+                  <div className="small">No finished trade activity yet.</div>
+                ) : (
+                  tradeHistory.map((entry) => (
+                    <div key={entry.id} style={tradeOfferCard}>
+                      <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+                        {entry.image ? (
+                          <div style={tradeThumbWrap}>
+                            <img
+                              src={entry.image}
+                              alt={entry.title}
+                              style={tradeThumb}
+                              onError={(e) => {
+                                e.currentTarget.style.display = "none";
+                              }}
+                            />
+                          </div>
+                        ) : null}
+                        <div>
+                          <div style={{ fontWeight: 800 }}>{entry.title}</div>
+                          <div className="small">{entry.subtitle}</div>
+                          {entry.updatedAt ? (
+                            <div className="small" style={{ marginTop: 4 }}>
+                              {formatTradeDate(entry.updatedAt)}
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                      <div className="badge" style={statusBadge}>
+                        {formatTradeStatus(entry.status)}
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           </div>
