@@ -2,6 +2,8 @@ node_modules/
 .next/
 dist/
 coverage/
+green-erc/artifacts/
+green-erc/cache/
 .env
 .env.*
 !.env.example
