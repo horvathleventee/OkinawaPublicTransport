@@ -1,8 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { encodeFunctionData } from "viem";
 import { useAccount, useChainId, usePublicClient, useSwitchChain, useWalletClient } from "wagmi";
 import { hardhat } from "wagmi/chains";
+import {
+  createAlchemyClaimClient,
+  getAlchemyAaUnavailableReason,
+  isAlchemyAaActiveForChain,
+} from "../lib/alchemyAa";
 import { greenCommuteTokenAbi } from "../lib/greenCommuteTokenAbi";
 
 const API =
@@ -74,28 +80,49 @@ export default function ClaimOnChainButton({ claim, onDone }) {
         await switchChainAsync({ chainId: targetChainId });
       }
 
-      const txHash = await walletClient.writeContract({
-        account: walletClient.account,
-        address: payload.contractAddress,
-        abi: greenCommuteTokenAbi,
-        functionName: "claimReward",
-        args: [
-          payload.walletAddress,
-          BigInt(payload.amount),
-          BigInt(payload.nonce),
-          BigInt(payload.expiry),
-          payload.signature,
-        ],
-        chain: hardhat,
-      });
+      const claimArgs = [
+        payload.walletAddress,
+        BigInt(payload.amount),
+        BigInt(payload.nonce),
+        BigInt(payload.expiry),
+        payload.signature,
+      ];
 
-      const receipt = await publicClient.waitForTransactionReceipt({
-        hash: txHash,
-        confirmations: 1,
-      });
+      let txHash;
+      let usedGaslessClaim = false;
 
-      if (receipt.status !== "success") {
-        throw new Error("Transaction reverted.");
+      if (isAlchemyAaActiveForChain(targetChainId)) {
+        const smartAccountClient = await createAlchemyClaimClient({ address });
+        txHash = await smartAccountClient.sendTransaction({
+          to: payload.contractAddress,
+          data: encodeFunctionData({
+            abi: greenCommuteTokenAbi,
+            functionName: "claimReward",
+            args: claimArgs,
+          }),
+          value: 0n,
+        });
+        usedGaslessClaim = true;
+      } else {
+        txHash = await walletClient.writeContract({
+          account: walletClient.account,
+          address: payload.contractAddress,
+          abi: greenCommuteTokenAbi,
+          functionName: "claimReward",
+          args: claimArgs,
+          chain: hardhat,
+        });
+      }
+
+      if (!usedGaslessClaim) {
+        const receipt = await publicClient.waitForTransactionReceipt({
+          hash: txHash,
+          confirmations: 1,
+        });
+
+        if (receipt.status !== "success") {
+          throw new Error("Transaction reverted.");
+        }
       }
 
       try {
@@ -112,19 +139,31 @@ export default function ClaimOnChainButton({ claim, onDone }) {
         );
       }
 
-      setInfo("On-chain claim confirmed.");
+      setInfo(usedGaslessClaim ? "Gasless claim confirmed." : "On-chain claim confirmed.");
       if (typeof onDone === "function") {
-        await onDone({ txHash, claimId: claim.id });
+        await onDone({ txHash, claimId: claim.id, gasless: usedGaslessClaim });
       }
     } catch (e) {
-      setError(String(e?.message || e));
+      const aaReason = claim?.chainId ? getAlchemyAaUnavailableReason(Number(claim.chainId)) : "";
+      const baseMessage = String(e?.message || e);
+      setError(aaReason && !baseMessage.includes(aaReason) ? `${baseMessage} | ${aaReason}` : baseMessage);
     } finally {
       setBusy(false);
     }
   }
 
+  const gaslessHint =
+    claim?.chainId && isAlchemyAaActiveForChain(Number(claim.chainId))
+      ? "Gasless smart account"
+      : "";
+
   return (
     <div style={{ display: "inline-flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+      {gaslessHint ? (
+        <div className="small" style={{ color: "#67e8f9" }}>
+          {gaslessHint}
+        </div>
+      ) : null}
       <button onClick={run} disabled={busy} style={smallBtn(busy ? 0.65 : 1)}>
         {busy ? "Claiming..." : "Claim on-chain"}
       </button>
