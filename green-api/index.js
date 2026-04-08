@@ -45,6 +45,7 @@ const GROUP_CHALLENGE_MIN_KM = 25;
 const GROUP_CHALLENGE_SCORE_FACTOR = 0.35;
 const GROUP_CHALLENGE_SCORE_CAP = 250;
 const GROUP_CROWN_REWARD_CODE = "global_crown_2000km";
+const COSMETIC_TOKEN_ID_OFFSET = 1000;
 
 const GCT_CONFIG = {
   contractAddress: String(process.env.GCT_CONTRACT_ADDRESS || "").trim().toLowerCase(),
@@ -55,6 +56,15 @@ const GCT_CONFIG = {
   burnAddress: String(process.env.GCT_BURN_ADDRESS || "0x000000000000000000000000000000000000dEaD")
     .trim()
     .toLowerCase(),
+};
+
+const COSMETICS_CONFIG = {
+  contractAddress: String(process.env.COSMETICS_CONTRACT_ADDRESS || "").trim().toLowerCase(),
+  chainId: Number(process.env.COSMETICS_CHAIN_ID || GCT_CONFIG.chainId || 31337),
+  baseUri: String(process.env.COSMETICS_BASE_URI || "greencommute://cosmetics/{id}").trim(),
+  adminPrivateKey: String(
+    process.env.COSMETICS_ADMIN_PRIVATE_KEY || process.env.GCT_ORACLE_PRIVATE_KEY || ""
+  ).trim(),
 };
 
 const GCT_EIP712_TYPES = {
@@ -77,6 +87,19 @@ const gctErc20Interface = new ethers.Interface([
 ]);
 const gctWriteInterface = new ethers.Interface([
   "function claimReward(address user, uint256 amount, uint256 nonce, uint256 expiry, bytes signature)",
+]);
+const cosmeticsReadInterface = new ethers.Interface([
+  "function balanceOf(address account, uint256 id) view returns (uint256)",
+  "function balanceOfBatch(address[] accounts, uint256[] ids) view returns (uint256[])",
+  "function isApprovedForAll(address account, address operator) view returns (bool)",
+]);
+const cosmeticsWriteInterface = new ethers.Interface([
+  "function mintTo(address to, uint256 tokenId, uint256 amount, bytes data)",
+  "function safeTransferFrom(address from, address to, uint256 id, uint256 value, bytes data)",
+  "function burn(address account, uint256 id, uint256 value)",
+]);
+const cosmeticsEventInterface = new ethers.Interface([
+  "event TransferSingle(address indexed operator, address indexed from, address indexed to, uint256 id, uint256 value)",
 ]);
 
 const dummyState = {
@@ -201,6 +224,8 @@ let gctRpcHealthCache = {
   reachable: null,
 };
 
+let cosmeticsAdminQueue = Promise.resolve();
+
 async function isGctRpcReachable() {
   const now = Date.now();
   if (now - gctRpcHealthCache.checkedAt < 3000 && gctRpcHealthCache.reachable != null) {
@@ -245,6 +270,52 @@ function getOracleWallet() {
     throw new Error("Missing GCT_ORACLE_PRIVATE_KEY");
   }
   return new ethers.Wallet(GCT_CONFIG.oraclePrivateKey, getGctProvider());
+}
+
+function hasCosmeticsContractConfigured() {
+  return ethers.isAddress(COSMETICS_CONFIG.contractAddress);
+}
+
+function getCosmeticsProvider() {
+  return new ethers.JsonRpcProvider(GCT_CONFIG.rpcUrl, COSMETICS_CONFIG.chainId);
+}
+
+function getCosmeticsAdminWallet() {
+  if (!COSMETICS_CONFIG.adminPrivateKey) {
+    throw new Error("Missing COSMETICS_ADMIN_PRIVATE_KEY or fallback GCT_ORACLE_PRIVATE_KEY");
+  }
+  return new ethers.Wallet(COSMETICS_CONFIG.adminPrivateKey, getCosmeticsProvider());
+}
+
+function getCosmeticsOperatorAddress() {
+  if (!hasCosmeticsContractConfigured() || !COSMETICS_CONFIG.adminPrivateKey) return null;
+  try {
+    return getCosmeticsAdminWallet().address.toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
+async function withCosmeticsAdminLock(task) {
+  const run = cosmeticsAdminQueue.then(() => task());
+  cosmeticsAdminQueue = run.catch(() => null);
+  return run;
+}
+
+async function sendCosmeticsAdminTransaction(data, nonce = null) {
+  return withCosmeticsAdminLock(async () => {
+    const wallet = getCosmeticsAdminWallet();
+    const tx = await wallet.sendTransaction({
+      to: COSMETICS_CONFIG.contractAddress,
+      data,
+      ...(nonce == null ? {} : { nonce }),
+    });
+    const receipt = await tx.wait();
+    if (!receipt || receipt.status !== 1) {
+      throw new Error("Cosmetics admin transaction failed");
+    }
+    return { tx, receipt, walletAddress: wallet.address.toLowerCase() };
+  });
 }
 
 function getGctDomain() {
@@ -329,6 +400,644 @@ async function getOnChainBalanceWei(walletAddress) {
   }
 }
 
+function getAvatarItemById(itemId) {
+  const items = loadAvatarItemManifest();
+  return items.find((item) => String(item?.id || "") === String(itemId || "")) || null;
+}
+
+function getCosmeticTokenId(itemId) {
+  const items = loadAvatarItemManifest();
+  const index = items.findIndex((item) => String(item?.id || "") === String(itemId || ""));
+  if (index < 0) return null;
+  return COSMETIC_TOKEN_ID_OFFSET + index + 1;
+}
+
+function isTokenizedAvatarItem(itemId) {
+  return Number.isFinite(getCosmeticTokenId(itemId));
+}
+
+function getCosmeticMetadataUri(itemId) {
+  return `greencommute://cosmetics/${itemId}`;
+}
+
+async function getOnChainCosmeticBalance(walletAddress, itemId) {
+  if (!hasCosmeticsContractConfigured()) return 0n;
+  if (!ethers.isAddress(walletAddress)) return 0n;
+  const tokenId = getCosmeticTokenId(itemId);
+  if (!Number.isFinite(tokenId) || tokenId <= 0) return 0n;
+  if (!(await isGctRpcReachable())) return 0n;
+
+  const provider = getCosmeticsProvider();
+  const code = await provider.getCode(COSMETICS_CONFIG.contractAddress);
+  if (!code || code === "0x") return 0n;
+
+  try {
+    const data = cosmeticsReadInterface.encodeFunctionData("balanceOf", [walletAddress, tokenId]);
+    const result = await provider.call({
+      to: COSMETICS_CONFIG.contractAddress,
+      data,
+    });
+    if (!result || result === "0x") return 0n;
+    const [balance] = cosmeticsReadInterface.decodeFunctionResult("balanceOf", result);
+    return balance;
+  } catch {
+    return 0n;
+  }
+}
+
+async function getOnChainOwnedCosmeticItemIds(walletAddress) {
+  if (!hasCosmeticsContractConfigured()) return [];
+  if (!ethers.isAddress(walletAddress)) return [];
+  if (!(await isGctRpcReachable())) return [];
+
+  const items = loadAvatarItemManifest();
+  if (!items.length) return [];
+
+  const provider = getCosmeticsProvider();
+  const code = await provider.getCode(COSMETICS_CONFIG.contractAddress);
+  if (!code || code === "0x") return [];
+
+  try {
+    const tokenIds = items.map((_, index) => BigInt(COSMETIC_TOKEN_ID_OFFSET + index + 1));
+    const accounts = tokenIds.map(() => walletAddress);
+    const data = cosmeticsReadInterface.encodeFunctionData("balanceOfBatch", [accounts, tokenIds]);
+    const result = await provider.call({
+      to: COSMETICS_CONFIG.contractAddress,
+      data,
+    });
+    if (!result || result === "0x") return [];
+    const [balances] = cosmeticsReadInterface.decodeFunctionResult("balanceOfBatch", result);
+    return items
+      .filter((_, index) => BigInt(balances[index] || 0) > 0n)
+      .map((item) => item.id);
+  } catch (error) {
+    console.warn("[COSMETICS] Failed to read on-chain owned items:", error?.message || error);
+    return [];
+  }
+}
+
+async function isCosmeticsOperatorApproved(walletAddress, operatorAddress = getCosmeticsOperatorAddress()) {
+  if (!hasCosmeticsContractConfigured()) return false;
+  if (!ethers.isAddress(walletAddress) || !ethers.isAddress(operatorAddress || "")) return false;
+  if (!(await isGctRpcReachable())) return false;
+
+  const provider = getCosmeticsProvider();
+  const code = await provider.getCode(COSMETICS_CONFIG.contractAddress);
+  if (!code || code === "0x") return false;
+
+  try {
+    const data = cosmeticsReadInterface.encodeFunctionData("isApprovedForAll", [walletAddress, operatorAddress]);
+    const result = await provider.call({
+      to: COSMETICS_CONFIG.contractAddress,
+      data,
+    });
+    if (!result || result === "0x") return false;
+    const [approved] = cosmeticsReadInterface.decodeFunctionResult("isApprovedForAll", result);
+    return Boolean(approved);
+  } catch {
+    return false;
+  }
+}
+
+async function ensureWalletOwnsCosmeticItemOnChain(walletAddress, itemId) {
+  if (!hasCosmeticsContractConfigured()) {
+    return {
+      configured: false,
+      minted: false,
+      tokenId: getCosmeticTokenId(itemId),
+      txHash: null,
+      metadataUri: getCosmeticMetadataUri(itemId),
+    };
+  }
+  if (!(await isGctRpcReachable())) {
+    throw new Error("RPC is unreachable for cosmetics mint");
+  }
+  if (!ethers.isAddress(walletAddress)) {
+    throw new Error("Invalid wallet for cosmetics mint");
+  }
+
+  const tokenId = getCosmeticTokenId(itemId);
+  if (!Number.isFinite(tokenId) || tokenId <= 0) {
+    throw new Error(`Unknown cosmetic itemId: ${itemId}`);
+  }
+
+  const currentBalance = await getOnChainCosmeticBalance(walletAddress, itemId);
+  if (currentBalance > 0n) {
+    return {
+      configured: true,
+      minted: false,
+      tokenId,
+      txHash: null,
+      metadataUri: getCosmeticMetadataUri(itemId),
+    };
+  }
+
+  const { tx } = await sendCosmeticsAdminTransaction(
+    cosmeticsWriteInterface.encodeFunctionData("mintTo", [walletAddress, BigInt(tokenId), 1n, "0x"])
+  );
+
+  return {
+    configured: true,
+    minted: true,
+    tokenId,
+    txHash: tx.hash,
+    metadataUri: getCosmeticMetadataUri(itemId),
+  };
+}
+
+async function reconcileWalletCosmeticItemOnChain(walletAddress, itemId, desiredCount = 0) {
+  const wallet = normalizeWalletAddress(walletAddress);
+  const tokenId = getCosmeticTokenId(itemId);
+  if (!hasCosmeticsContractConfigured() || !ethers.isAddress(wallet) || !Number.isFinite(tokenId)) {
+    return {
+      itemId,
+      tokenId,
+      desiredCount: Math.max(0, Number(desiredCount || 0)),
+      currentCount: 0,
+      minted: 0,
+      burned: 0,
+      skippedBurn: false,
+      txHashes: [],
+    };
+  }
+
+  const desired = Math.max(0, Number(desiredCount || 0));
+  const current = Number(await getOnChainCosmeticBalance(wallet, itemId));
+  const txHashes = [];
+  let minted = 0;
+  let burned = 0;
+  let skippedBurn = false;
+
+  if (current < desired) {
+    const mintAmount = desired - current;
+    const { tx } = await sendCosmeticsAdminTransaction(
+      cosmeticsWriteInterface.encodeFunctionData("mintTo", [wallet, BigInt(tokenId), BigInt(mintAmount), "0x"])
+    );
+    txHashes.push(tx.hash);
+    minted = mintAmount;
+  } else if (current > desired) {
+    const burnAmount = current - desired;
+    const operatorWallet = getCosmeticsOperatorAddress();
+    const approved = await isCosmeticsOperatorApproved(wallet, operatorWallet);
+    if (approved) {
+      const { tx } = await sendCosmeticsAdminTransaction(
+        cosmeticsWriteInterface.encodeFunctionData("burn", [wallet, BigInt(tokenId), BigInt(burnAmount)])
+      );
+      txHashes.push(tx.hash);
+      burned = burnAmount;
+    } else {
+      skippedBurn = true;
+    }
+  }
+
+  return {
+    itemId,
+    tokenId,
+    desiredCount: desired,
+    currentCount: current,
+    minted,
+    burned,
+    skippedBurn,
+    txHashes,
+  };
+}
+
+async function syncOwnedCosmeticsToChain(walletAddress) {
+  const wallet = normalizeWalletAddress(walletAddress);
+  if (!hasCosmeticsContractConfigured()) {
+    return {
+      configured: false,
+      syncedItemIds: [],
+      mintedCount: 0,
+    };
+  }
+
+  const purchaseRows = await q(
+    `
+    SELECT item_id, COUNT(*) AS cnt
+    FROM shop_purchases
+    WHERE wallet_address = ?
+      AND item_id IS NOT NULL
+    GROUP BY item_id
+    ORDER BY item_id ASC
+    `,
+    [wallet]
+  );
+  const outgoingRows = await q(
+    `
+    SELECT item_id, COUNT(*) AS cnt
+    FROM cosmetic_transfers
+    WHERE from_wallet = ?
+      AND item_id IS NOT NULL
+    GROUP BY item_id
+    `,
+    [wallet]
+  );
+  const incomingRows = await q(
+    `
+    SELECT item_id, COUNT(*) AS cnt
+    FROM cosmetic_transfers
+    WHERE to_wallet = ?
+      AND item_id IS NOT NULL
+    GROUP BY item_id
+    `,
+    [wallet]
+  );
+
+  const desiredCounts = new Map();
+  for (const row of purchaseRows) {
+    const itemId = String(row.item_id || "").trim();
+    if (!isTokenizedAvatarItem(itemId)) continue;
+    desiredCounts.set(itemId, (desiredCounts.get(itemId) || 0) + Number(row.cnt || 0));
+  }
+  for (const row of incomingRows) {
+    const itemId = String(row.item_id || "").trim();
+    if (!isTokenizedAvatarItem(itemId)) continue;
+    desiredCounts.set(itemId, (desiredCounts.get(itemId) || 0) + Number(row.cnt || 0));
+  }
+  for (const row of outgoingRows) {
+    const itemId = String(row.item_id || "").trim();
+    if (!isTokenizedAvatarItem(itemId)) continue;
+    desiredCounts.set(itemId, (desiredCounts.get(itemId) || 0) - Number(row.cnt || 0));
+  }
+
+  const tokenizedItemIds = [...desiredCounts.keys()].filter((itemId) => isTokenizedAvatarItem(itemId));
+
+  const results = [];
+  for (const itemId of tokenizedItemIds) {
+    const desired = Math.max(0, desiredCounts.get(itemId) || 0);
+    const result = await reconcileWalletCosmeticItemOnChain(wallet, itemId, desired);
+    results.push(result);
+  }
+
+  return {
+    configured: true,
+    syncedItemIds: tokenizedItemIds,
+    mintedCount: results.reduce((sum, entry) => sum + Number(entry.minted || 0), 0),
+    burnedCount: results.reduce((sum, entry) => sum + Number(entry.burned || 0), 0),
+    results,
+  };
+}
+
+async function confirmCosmeticTransferOnChain({
+  txHash,
+  chainId,
+  fromWallet,
+  toWallet,
+  itemId,
+}) {
+  if (!hasCosmeticsContractConfigured()) {
+    throw new Error("Cosmetics contract is not configured");
+  }
+  if (chainId !== COSMETICS_CONFIG.chainId) {
+    throw new Error(`Invalid cosmetics chainId, expected ${COSMETICS_CONFIG.chainId}`);
+  }
+  if (!isValidTxHash(txHash)) {
+    throw new Error("txHash is required and must be a valid 0x hash");
+  }
+  if (!(await isGctRpcReachable())) {
+    throw new Error("RPC is unreachable for cosmetics transfer validation");
+  }
+
+  const tokenId = getCosmeticTokenId(itemId);
+  if (!Number.isFinite(tokenId) || tokenId <= 0) {
+    throw new Error("Unknown cosmetic item");
+  }
+
+  const provider = getCosmeticsProvider();
+  const receipt = await provider.getTransactionReceipt(txHash);
+  if (!receipt) throw new Error("Transfer transaction is not mined yet");
+  if (receipt.status !== 1) throw new Error("Transfer transaction reverted");
+
+  const expectedFrom = normalizeWalletAddress(fromWallet);
+  const expectedTo = normalizeWalletAddress(toWallet);
+  let matchedLog = null;
+
+  for (const log of receipt.logs || []) {
+    if (normalizeWalletAddress(log.address) !== COSMETICS_CONFIG.contractAddress) continue;
+    try {
+      const parsed = cosmeticsEventInterface.parseLog(log);
+      if (!parsed || parsed.name !== "TransferSingle") continue;
+
+      const eventFrom = normalizeWalletAddress(parsed.args.from);
+      const eventTo = normalizeWalletAddress(parsed.args.to);
+      const eventTokenId = Number(parsed.args.id);
+      const eventAmount = Number(parsed.args.value);
+
+      if (
+        eventFrom === expectedFrom &&
+        eventTo === expectedTo &&
+        eventTokenId === tokenId &&
+        eventAmount === 1
+      ) {
+        matchedLog = {
+          operatorWallet: normalizeWalletAddress(parsed.args.operator),
+          tokenId: eventTokenId,
+          amount: eventAmount,
+        };
+        break;
+      }
+    } catch {
+      // ignore unrelated logs
+    }
+  }
+
+  if (!matchedLog) {
+    throw new Error("Cosmetic transfer event validation failed");
+  }
+
+  return {
+    txHash,
+    chainId,
+    tokenId,
+    amount: matchedLog.amount,
+    operatorWallet: matchedLog.operatorWallet,
+  };
+}
+
+async function executeCosmeticTradeSwap({
+  listingOwnerWallet,
+  listingItemId,
+  offererWallet,
+  offeredItemId,
+}) {
+  if (!hasCosmeticsContractConfigured()) {
+    throw new Error("Cosmetics contract is not configured");
+  }
+  if (!(await isGctRpcReachable())) {
+    throw new Error("RPC is unreachable for cosmetics trade swap");
+  }
+
+  const ownerWallet = normalizeWalletAddress(listingOwnerWallet);
+  const otherWallet = normalizeWalletAddress(offererWallet);
+  const listingTokenId = getCosmeticTokenId(listingItemId);
+  const offeredTokenId = getCosmeticTokenId(offeredItemId);
+  if (!Number.isFinite(listingTokenId) || !Number.isFinite(offeredTokenId)) {
+    throw new Error("Unknown cosmetic token in trade");
+  }
+
+  const operatorWallet = getCosmeticsOperatorAddress();
+  if (!ethers.isAddress(operatorWallet || "")) {
+    throw new Error("Cosmetics trade operator is not configured");
+  }
+
+  const [ownerApproved, offererApproved] = await Promise.all([
+    isCosmeticsOperatorApproved(ownerWallet, operatorWallet),
+    isCosmeticsOperatorApproved(otherWallet, operatorWallet),
+  ]);
+  if (!ownerApproved || !offererApproved) {
+    throw new Error("Both traders must enable NFT trade approval before accepting the offer");
+  }
+
+  const [ownerHasListedItem, offererHasOfferedItem, offererHasListedItem, ownerHasOfferedItem] = await Promise.all([
+    getOnChainCosmeticBalance(ownerWallet, listingItemId),
+    getOnChainCosmeticBalance(otherWallet, offeredItemId),
+    getOnChainCosmeticBalance(otherWallet, listingItemId),
+    getOnChainCosmeticBalance(ownerWallet, offeredItemId),
+  ]);
+
+  // Fully completed already: both sides already hold the swapped items.
+  if (ownerHasListedItem <= 0n && offererHasOfferedItem <= 0n && offererHasListedItem > 0n && ownerHasOfferedItem > 0n) {
+    return {
+      operatorWallet,
+      txHashes: [],
+      resumed: true,
+      completedAlready: true,
+    };
+  }
+
+  // Offerer must still own the offered item unless swap already fully completed.
+  if (offererHasOfferedItem <= 0n && ownerHasOfferedItem <= 0n) {
+    throw new Error("Offerer no longer owns the offered NFT");
+  }
+
+  const txHashes = [];
+
+  // If the listing item is still with the owner, do the first leg.
+  if (ownerHasListedItem > 0n) {
+    const { tx: firstTx } = await sendCosmeticsAdminTransaction(
+      cosmeticsWriteInterface.encodeFunctionData("safeTransferFrom", [
+        ownerWallet,
+        otherWallet,
+        BigInt(listingTokenId),
+        1n,
+        "0x",
+      ])
+    );
+    txHashes.push(firstTx.hash);
+
+    await db.query(
+      `
+      INSERT IGNORE INTO cosmetic_transfers
+        (tx_hash, chain_id, item_id, token_id, from_wallet, to_wallet, operator_wallet, amount, metadata_json)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)
+      `,
+      [
+        firstTx.hash,
+        COSMETICS_CONFIG.chainId,
+        listingItemId,
+        listingTokenId,
+        ownerWallet,
+        otherWallet,
+        operatorWallet,
+        JSON.stringify({ reason: "trade_swap", leg: "listing_to_offerer" }),
+      ]
+    );
+  } else if (offererHasListedItem <= 0n) {
+    throw new Error("Listing owner no longer owns the listed NFT");
+  }
+
+  const ownerHasOfferedAfterFirst = await getOnChainCosmeticBalance(ownerWallet, offeredItemId);
+  if (ownerHasOfferedAfterFirst <= 0n) {
+    if (offererHasOfferedItem <= 0n) {
+      return {
+        operatorWallet,
+        txHashes,
+        resumed: txHashes.length > 0,
+      };
+    }
+
+    const { tx: secondTx } = await sendCosmeticsAdminTransaction(
+      cosmeticsWriteInterface.encodeFunctionData("safeTransferFrom", [
+        otherWallet,
+        ownerWallet,
+        BigInt(offeredTokenId),
+        1n,
+        "0x",
+      ])
+    );
+    txHashes.push(secondTx.hash);
+
+    await db.query(
+      `
+      INSERT IGNORE INTO cosmetic_transfers
+        (tx_hash, chain_id, item_id, token_id, from_wallet, to_wallet, operator_wallet, amount, metadata_json)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)
+      `,
+      [
+        secondTx.hash,
+        COSMETICS_CONFIG.chainId,
+        offeredItemId,
+        offeredTokenId,
+        otherWallet,
+        ownerWallet,
+        operatorWallet,
+        JSON.stringify({ reason: "trade_swap", leg: "offerer_to_listing_owner" }),
+      ]
+    );
+  }
+
+  const [finalOwnerListed, finalOffererOffered, finalOffererListed, finalOwnerOffered] = await Promise.all([
+    getOnChainCosmeticBalance(ownerWallet, listingItemId),
+    getOnChainCosmeticBalance(otherWallet, offeredItemId),
+    getOnChainCosmeticBalance(otherWallet, listingItemId),
+    getOnChainCosmeticBalance(ownerWallet, offeredItemId),
+  ]);
+  if (!(finalOwnerListed <= 0n && finalOffererOffered <= 0n && finalOffererListed > 0n && finalOwnerOffered > 0n)) {
+    throw new Error("Trade swap did not complete successfully on-chain");
+  }
+
+  return {
+    operatorWallet,
+    txHashes,
+    resumed: txHashes.length > 0,
+  };
+}
+
+async function buildTradeOffersForListing(listingId) {
+  const rows = await q(
+    `
+    SELECT id, listing_id, offerer_wallet, offered_item_id, note, offer_status, created_at, updated_at
+    FROM trade_offers
+    WHERE listing_id = ?
+    ORDER BY id DESC
+    `,
+    [listingId]
+  );
+
+  return Promise.all(
+    rows.map(async (row) => {
+      const offerer = await buildCommunityUserSummary(row.offerer_wallet);
+      return {
+        id: Number(row.id),
+        listingId: Number(row.listing_id),
+        offererWallet: row.offerer_wallet,
+        offeredItemId: row.offered_item_id,
+        note: row.note || "",
+        status: row.offer_status,
+        createdAt: toIsoMaybe(row.created_at),
+        updatedAt: toIsoMaybe(row.updated_at),
+        offerer,
+        offeredItem: getAvatarItemById(row.offered_item_id),
+      };
+    })
+  );
+}
+
+async function buildTradeListing(row, viewerWallet = null) {
+  const owner = await buildCommunityUserSummary(row.owner_wallet);
+  const offers = await buildTradeOffersForListing(row.id);
+  const viewer = normalizeWalletAddress(viewerWallet);
+
+  return {
+    id: Number(row.id),
+    ownerWallet: row.owner_wallet,
+    itemId: row.item_id,
+    note: row.note || "",
+    status: row.listing_status,
+    createdAt: toIsoMaybe(row.created_at),
+    updatedAt: toIsoMaybe(row.updated_at),
+    owner,
+    item: getAvatarItemById(row.item_id),
+    offers,
+    viewerIsOwner: viewer ? viewer === normalizeWalletAddress(row.owner_wallet) : false,
+  };
+}
+
+async function getTradeHubData(walletAddress = null) {
+  const viewerWallet = normalizeWalletAddress(walletAddress);
+  const allListingRows = await q(
+    `
+    SELECT id, owner_wallet, item_id, note, listing_status, created_at, updated_at
+    FROM trade_listings
+    ORDER BY id DESC
+    `
+  );
+  const listingRows = allListingRows.filter((row) => row.listing_status === "open");
+  const operatorAddress = getCosmeticsOperatorAddress();
+  const viewerTradeApproved =
+    viewerWallet && operatorAddress ? await isCosmeticsOperatorApproved(viewerWallet, operatorAddress) : false;
+
+  const openListings = await Promise.all(
+    listingRows.map((row) => buildTradeListing(row, viewerWallet))
+  );
+
+  const myListings = viewerWallet
+    ? await Promise.all(
+        allListingRows
+          .filter((listing) => normalizeWalletAddress(listing.owner_wallet) === viewerWallet)
+          .map((listing) => buildTradeListing(listing, viewerWallet))
+      )
+    : [];
+
+  const availableListings = viewerWallet
+    ? openListings.filter((listing) => normalizeWalletAddress(listing.ownerWallet) !== viewerWallet)
+    : openListings;
+
+  const incomingOffers = myListings
+    .filter((listing) => listing.status === "open")
+    .flatMap((listing) =>
+      listing.offers
+        .filter((offer) => offer.status === "pending")
+        .map((offer) => ({
+          ...offer,
+          listing,
+        }))
+    );
+
+  let outgoingOffers = [];
+  if (viewerWallet) {
+    const outgoingRows = await q(
+      `
+      SELECT id, listing_id, offerer_wallet, offered_item_id, note, offer_status, created_at, updated_at
+      FROM trade_offers
+      WHERE offerer_wallet = ?
+      ORDER BY id DESC
+      `,
+      [viewerWallet]
+    );
+    outgoingOffers = await Promise.all(
+      outgoingRows.map(async (row) => {
+        const listingRow = allListingRows.find((entry) => Number(entry.id) === Number(row.listing_id));
+        return {
+          id: Number(row.id),
+          listingId: Number(row.listing_id),
+          offererWallet: row.offerer_wallet,
+          offeredItemId: row.offered_item_id,
+          note: row.note || "",
+          status: row.offer_status,
+          createdAt: toIsoMaybe(row.created_at),
+          updatedAt: toIsoMaybe(row.updated_at),
+          offeredItem: getAvatarItemById(row.offered_item_id),
+          listing: listingRow ? await buildTradeListing(listingRow, viewerWallet) : null,
+        };
+      })
+    );
+  }
+
+  return {
+    openListings: availableListings,
+    myListings,
+    incomingOffers,
+    outgoingOffers,
+    cosmeticsContractAddress: hasCosmeticsContractConfigured() ? COSMETICS_CONFIG.contractAddress : null,
+    cosmeticsChainId: hasCosmeticsContractConfigured() ? COSMETICS_CONFIG.chainId : null,
+    tradeOperatorAddress: operatorAddress,
+    tradeApprovalRequired: Boolean(operatorAddress),
+    viewerTradeApproved,
+  };
+}
+
 // ----------------------------------------------------
 // VALIDATION (Zod)
 // ----------------------------------------------------
@@ -406,6 +1115,22 @@ const GroupChallengeSchema = z.object({
   endsAt: z.string().datetime(),
 });
 
+const TradeListingSchema = z.object({
+  walletAddress: z.string().min(3).max(100),
+  itemId: z.string().min(1).max(100),
+  note: z.string().max(240).optional().nullable(),
+});
+
+const TradeOfferSchema = z.object({
+  walletAddress: z.string().min(3).max(100),
+  offeredItemId: z.string().min(1).max(100),
+  note: z.string().max(240).optional().nullable(),
+});
+
+const TradeActionSchema = z.object({
+  walletAddress: z.string().min(3).max(100),
+});
+
 const ShopPurchaseSchema = z.object({
   walletAddress: z.string().min(3).max(100),
   itemId: z.string().min(1).max(100),
@@ -413,6 +1138,14 @@ const ShopPurchaseSchema = z.object({
   slotName: z.string().min(1).max(32).optional(),
   priceTokens: z.number().min(0).max(1000000),
   metadata: z.any().optional(),
+});
+
+const CosmeticTransferConfirmSchema = z.object({
+  fromWallet: z.string().min(3).max(100),
+  toWallet: z.string().min(3).max(100),
+  itemId: z.string().min(1).max(100),
+  txHash: z.string().min(66).max(66),
+  chainId: z.number().int().positive(),
 });
 
 const ClaimCreateSchema = z.object({
@@ -618,6 +1351,10 @@ async function doesWalletOwnItem(wallet, itemId) {
   const normalizedWallet = normalizeWalletAddress(wallet);
   const normalizedItemId = String(itemId || "").trim();
   if (!normalizedWallet || !normalizedItemId) return false;
+  if (hasCosmeticsContractConfigured() && isTokenizedAvatarItem(normalizedItemId)) {
+    const onChainBalance = await getOnChainCosmeticBalance(normalizedWallet, normalizedItemId);
+    return onChainBalance > 0n;
+  }
   const rows = await q(
     `
     SELECT 1 AS ok
@@ -905,6 +1642,57 @@ async function ensureAvatarSocialFeatureTables() {
       UNIQUE KEY uq_group_reward_unique (group_id, wallet_address, reward_code),
       KEY idx_group_reward_wallet (wallet_address),
       KEY idx_group_reward_code (reward_code)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS cosmetic_transfers (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+      tx_hash VARCHAR(66) NOT NULL,
+      chain_id BIGINT UNSIGNED NOT NULL,
+      item_id VARCHAR(100) NOT NULL,
+      token_id BIGINT UNSIGNED NOT NULL,
+      from_wallet VARCHAR(42) NOT NULL,
+      to_wallet VARCHAR(42) NOT NULL,
+      operator_wallet VARCHAR(42) NULL,
+      amount INT UNSIGNED NOT NULL DEFAULT 1,
+      metadata_json LONGTEXT NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      UNIQUE KEY uq_cosmetic_transfers_tx (tx_hash),
+      KEY idx_cosmetic_transfers_from (from_wallet),
+      KEY idx_cosmetic_transfers_to (to_wallet),
+      KEY idx_cosmetic_transfers_item (item_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS trade_listings (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+      owner_wallet VARCHAR(42) NOT NULL,
+      item_id VARCHAR(100) NOT NULL,
+      note VARCHAR(240) NULL,
+      listing_status ENUM('open','accepted','cancelled') NOT NULL DEFAULT 'open',
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      KEY idx_trade_listings_owner (owner_wallet),
+      KEY idx_trade_listings_status (listing_status),
+      KEY idx_trade_listings_item (item_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS trade_offers (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+      listing_id BIGINT UNSIGNED NOT NULL,
+      offerer_wallet VARCHAR(42) NOT NULL,
+      offered_item_id VARCHAR(100) NOT NULL,
+      note VARCHAR(240) NULL,
+      offer_status ENUM('pending','accepted','rejected','cancelled') NOT NULL DEFAULT 'pending',
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      KEY idx_trade_offers_listing (listing_id),
+      KEY idx_trade_offers_offerer (offerer_wallet),
+      KEY idx_trade_offers_status (offer_status)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
   await ensureGroupChallengeColumns();
@@ -2329,10 +3117,14 @@ async function grantGroupRewardIfMissing(groupId, walletAddress, rewardCode, rew
   const purchaseMode = String(options.purchaseMode || "group_reward");
   const txHash = options.txHash ? String(options.txHash).trim() : null;
   const chainId = options.chainId == null ? null : Number(options.chainId);
+  const nftGrant = rewardItem?.id ? await ensureWalletOwnsCosmeticItemOnChain(wallet, rewardItem.id) : null;
   const metadata = JSON.stringify({
     rewardCode,
     groupId,
     rewardType: "group-milestone",
+    cosmeticTokenId: nftGrant?.tokenId ?? null,
+    cosmeticMintTxHash: nftGrant?.txHash ?? null,
+    cosmeticMetadataUri: nftGrant?.metadataUri ?? null,
   });
   await db.query(
     `
@@ -2341,7 +3133,7 @@ async function grantGroupRewardIfMissing(groupId, walletAddress, rewardCode, rew
     `,
     [groupId, wallet, rewardCode, rewardItem?.id || null, metadata]
   );
-  if (!rewardItem?.id) return;
+	  if (!rewardItem?.id) return;
   const existingRows = await q(
     `
     SELECT id, purchase_mode
@@ -2351,23 +3143,23 @@ async function grantGroupRewardIfMissing(groupId, walletAddress, rewardCode, rew
     `,
     [wallet, rewardItem.id]
   );
-  if (existingRows.length) {
-    const existingId = Number(existingRows[0].id);
-    if (purchaseMode === "onchain") {
-      await db.query(
-        `
-        UPDATE shop_purchases
-        SET purchase_mode = 'onchain',
-            tx_hash = ?,
-            chain_id = ?,
-            metadata_json = ?
-        WHERE id = ?
-        `,
-        [txHash, chainId, metadata, existingId]
-      );
-    }
-    return;
-  }
+	  if (existingRows.length) {
+	    const existingId = Number(existingRows[0].id);
+	    if (purchaseMode === "onchain" || nftGrant?.txHash) {
+	      await db.query(
+	        `
+	        UPDATE shop_purchases
+	        SET purchase_mode = 'onchain',
+	            tx_hash = ?,
+	            chain_id = ?,
+	            metadata_json = ?
+	        WHERE id = ?
+	        `,
+	        [txHash, chainId, metadata, existingId]
+	      );
+	    }
+	    return;
+	  }
   await db.query(
     `
     INSERT INTO shop_purchases
@@ -4338,6 +5130,15 @@ app.post("/api/shop/purchase", async (req, res) => {
       });
     }
 
+    const nftGrant = await ensureWalletOwnsCosmeticItemOnChain(walletAddress, itemId);
+    const finalMetadata = JSON.stringify({
+      ...(parsed.data.metadata || {}),
+      cosmeticTokenId: nftGrant?.tokenId ?? null,
+      cosmeticMintTxHash: nftGrant?.txHash ?? null,
+      cosmeticMetadataUri: nftGrant?.metadataUri ?? null,
+      tokenStandard: nftGrant?.configured ? "ERC-1155" : null,
+    });
+
     await db.query(
       `
       INSERT INTO shop_purchases
@@ -4345,7 +5146,7 @@ app.post("/api/shop/purchase", async (req, res) => {
       VALUES
         (?, ?, ?, ?, ?, 'onchain', ?, ?, ?, NOW())
       `,
-      [walletAddress, itemId, itemName, slotName, priceTokens, txHash, GCT_CONFIG.chainId, metadataJson]
+      [walletAddress, itemId, itemName, slotName, priceTokens, txHash, GCT_CONFIG.chainId, finalMetadata || metadataJson]
     );
 
     return res.json({
@@ -4354,6 +5155,11 @@ app.post("/api/shop/purchase", async (req, res) => {
       saved: true,
       walletAddress,
       itemId,
+      nft: {
+        tokenId: nftGrant?.tokenId ?? null,
+        mintTxHash: nftGrant?.txHash ?? null,
+        tokenStandard: nftGrant?.configured ? "ERC-1155" : null,
+      },
       txHash,
       chainId: GCT_CONFIG.chainId,
     });
@@ -4362,6 +5168,367 @@ app.post("/api/shop/purchase", async (req, res) => {
     return res.status(500).json({
       ok: false,
       error: "Failed to save purchase",
+      details: err?.message || String(err),
+    });
+  }
+});
+
+app.post("/api/cosmetics/transfer/confirm", async (req, res) => {
+  try {
+    const parsed = CosmeticTransferConfirmSchema.safeParse(req.body || {});
+    if (!parsed.success) {
+      return res.status(400).json({
+        ok: false,
+        error: "Invalid cosmetic transfer payload",
+        details: parsed.error.flatten(),
+      });
+    }
+
+    const fromWallet = normalizeWalletAddress(parsed.data.fromWallet);
+    const toWallet = normalizeWalletAddress(parsed.data.toWallet);
+    const itemId = String(parsed.data.itemId || "").trim();
+
+    if (fromWallet === toWallet) {
+      return res.status(400).json({ ok: false, error: "Recipient wallet must be different" });
+    }
+    if (!ethers.isAddress(fromWallet) || !ethers.isAddress(toWallet)) {
+      return res.status(400).json({ ok: false, error: "Invalid transfer wallet address" });
+    }
+
+    const validation = await confirmCosmeticTransferOnChain({
+      txHash: parsed.data.txHash,
+      chainId: parsed.data.chainId,
+      fromWallet,
+      toWallet,
+      itemId,
+    });
+
+    const item = getAvatarItemById(itemId);
+    const metadata = JSON.stringify({
+      itemName: item?.name || itemId,
+      slotName: item?.slot || null,
+      cosmeticMetadataUri: getCosmeticMetadataUri(itemId),
+    });
+
+    await db.query(
+      `
+      INSERT INTO cosmetic_transfers
+        (tx_hash, chain_id, item_id, token_id, from_wallet, to_wallet, operator_wallet, amount, metadata_json, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+      ON DUPLICATE KEY UPDATE
+        chain_id = VALUES(chain_id),
+        item_id = VALUES(item_id),
+        token_id = VALUES(token_id),
+        from_wallet = VALUES(from_wallet),
+        to_wallet = VALUES(to_wallet),
+        operator_wallet = VALUES(operator_wallet),
+        amount = VALUES(amount),
+        metadata_json = VALUES(metadata_json)
+      `,
+      [
+        validation.txHash,
+        validation.chainId,
+        itemId,
+        validation.tokenId,
+        fromWallet,
+        toWallet,
+        validation.operatorWallet,
+        validation.amount,
+        metadata,
+      ]
+    );
+
+    return res.json({
+      ok: true,
+      itemId,
+      tokenId: validation.tokenId,
+      txHash: validation.txHash,
+      fromWallet,
+      toWallet,
+    });
+  } catch (err) {
+    console.error("POST /api/cosmetics/transfer/confirm error:", err);
+    return res.status(500).json({
+      ok: false,
+      error: "Failed to confirm cosmetic transfer",
+      details: err?.message || String(err),
+    });
+  }
+});
+
+app.get("/api/trades", async (req, res) => {
+  try {
+    const walletAddress = req.query?.wallet ? normalizeWalletAddress(req.query.wallet) : null;
+    const hub = await getTradeHubData(walletAddress);
+    return res.json({
+      ok: true,
+      walletAddress,
+      ...hub,
+    });
+  } catch (err) {
+    console.error("GET /api/trades error:", err);
+    return res.status(500).json({
+      ok: false,
+      error: "Failed to load trade hub",
+      details: err?.message || String(err),
+    });
+  }
+});
+
+app.post("/api/trades/listings", async (req, res) => {
+  try {
+    const parsed = TradeListingSchema.safeParse(req.body || {});
+    if (!parsed.success) {
+      return res.status(400).json({
+        ok: false,
+        error: "Invalid trade listing payload",
+        details: parsed.error.flatten(),
+      });
+    }
+
+    const walletAddress = normalizeWalletAddress(parsed.data.walletAddress);
+    const itemId = String(parsed.data.itemId || "").trim();
+    const note = parsed.data.note ? String(parsed.data.note).trim() : null;
+
+    if (!await doesWalletOwnItem(walletAddress, itemId)) {
+      return res.status(400).json({ ok: false, error: "You do not currently own this item" });
+    }
+
+    const existing = await q(
+      `
+      SELECT id
+      FROM trade_listings
+      WHERE owner_wallet = ? AND item_id = ? AND listing_status = 'open'
+      LIMIT 1
+      `,
+      [walletAddress, itemId]
+    );
+    if (existing.length) {
+      return res.status(400).json({ ok: false, error: "This item is already listed for trade" });
+    }
+
+    await db.query(
+      `
+      INSERT INTO trade_listings (owner_wallet, item_id, note, listing_status, created_at, updated_at)
+      VALUES (?, ?, ?, 'open', NOW(), NOW())
+      `,
+      [walletAddress, itemId, note]
+    );
+
+    const hub = await getTradeHubData(walletAddress);
+    return res.json({ ok: true, ...hub });
+  } catch (err) {
+    console.error("POST /api/trades/listings error:", err);
+    return res.status(500).json({
+      ok: false,
+      error: "Failed to create trade listing",
+      details: err?.message || String(err),
+    });
+  }
+});
+
+app.post("/api/trades/listings/:listingId/offers", async (req, res) => {
+  try {
+    const listingId = Number(req.params.listingId);
+    const parsed = TradeOfferSchema.safeParse(req.body || {});
+    if (!Number.isFinite(listingId) || listingId <= 0 || !parsed.success) {
+      return res.status(400).json({
+        ok: false,
+        error: parsed.success ? "Invalid listing id" : "Invalid trade offer payload",
+        details: parsed.success ? undefined : parsed.error.flatten(),
+      });
+    }
+
+    const walletAddress = normalizeWalletAddress(parsed.data.walletAddress);
+    const offeredItemId = String(parsed.data.offeredItemId || "").trim();
+    const note = parsed.data.note ? String(parsed.data.note).trim() : null;
+
+    const listingRows = await q(
+      `
+      SELECT id, owner_wallet, item_id, listing_status
+      FROM trade_listings
+      WHERE id = ?
+      LIMIT 1
+      `,
+      [listingId]
+    );
+    if (!listingRows.length) {
+      return res.status(404).json({ ok: false, error: "Trade listing not found" });
+    }
+    const listing = listingRows[0];
+    if (listing.listing_status !== "open") {
+      return res.status(400).json({ ok: false, error: "Trade listing is not open" });
+    }
+    if (normalizeWalletAddress(listing.owner_wallet) === walletAddress) {
+      return res.status(400).json({ ok: false, error: "You cannot send an offer to your own listing" });
+    }
+    if (!await doesWalletOwnItem(walletAddress, offeredItemId)) {
+      return res.status(400).json({ ok: false, error: "You do not currently own the offered item" });
+    }
+
+    const existing = await q(
+      `
+      SELECT id
+      FROM trade_offers
+      WHERE listing_id = ? AND offerer_wallet = ? AND offered_item_id = ? AND offer_status = 'pending'
+      LIMIT 1
+      `,
+      [listingId, walletAddress, offeredItemId]
+    );
+    if (existing.length) {
+      return res.status(400).json({ ok: false, error: "You already sent this offer" });
+    }
+
+    await db.query(
+      `
+      INSERT INTO trade_offers (listing_id, offerer_wallet, offered_item_id, note, offer_status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, 'pending', NOW(), NOW())
+      `,
+      [listingId, walletAddress, offeredItemId, note]
+    );
+
+    const hub = await getTradeHubData(walletAddress);
+    return res.json({ ok: true, ...hub });
+  } catch (err) {
+    console.error("POST /api/trades/listings/:listingId/offers error:", err);
+    return res.status(500).json({
+      ok: false,
+      error: "Failed to send trade offer",
+      details: err?.message || String(err),
+    });
+  }
+});
+
+app.post("/api/trades/offers/:offerId/accept", async (req, res) => {
+  try {
+    const offerId = Number(req.params.offerId);
+    const parsed = TradeActionSchema.safeParse(req.body || {});
+    if (!Number.isFinite(offerId) || offerId <= 0 || !parsed.success) {
+      return res.status(400).json({ ok: false, error: parsed.success ? "Invalid offer id" : parsed.error.flatten() });
+    }
+    const walletAddress = normalizeWalletAddress(parsed.data.walletAddress);
+
+    const rows = await q(
+      `
+      SELECT o.id, o.listing_id, o.offer_status, o.offerer_wallet, o.offered_item_id, l.owner_wallet, l.item_id, l.listing_status
+      FROM trade_offers o
+      JOIN trade_listings l ON l.id = o.listing_id
+      WHERE o.id = ?
+      LIMIT 1
+      `,
+      [offerId]
+    );
+    if (!rows.length) return res.status(404).json({ ok: false, error: "Trade offer not found" });
+    const offer = rows[0];
+    if (normalizeWalletAddress(offer.owner_wallet) !== walletAddress) {
+      return res.status(403).json({ ok: false, error: "Only the listing owner can accept this offer" });
+    }
+    if (offer.offer_status !== "pending") {
+      return res.status(400).json({ ok: false, error: "Trade offer is no longer pending" });
+    }
+    if (offer.listing_status !== "open") {
+      return res.status(400).json({ ok: false, error: "Trade listing is no longer open" });
+    }
+
+    const swap = await executeCosmeticTradeSwap({
+      listingOwnerWallet: offer.owner_wallet,
+      listingItemId: offer.item_id,
+      offererWallet: offer.offerer_wallet,
+      offeredItemId: offer.offered_item_id,
+    });
+
+    await db.query(`UPDATE trade_offers SET offer_status = 'accepted', updated_at = NOW() WHERE id = ?`, [offerId]);
+    await db.query(
+      `UPDATE trade_offers SET offer_status = 'rejected', updated_at = NOW() WHERE listing_id = ? AND id <> ? AND offer_status = 'pending'`,
+      [offer.listing_id, offerId]
+    );
+    await db.query(`UPDATE trade_listings SET listing_status = 'accepted', updated_at = NOW() WHERE id = ?`, [offer.listing_id]);
+
+    const hub = await getTradeHubData(walletAddress);
+    return res.json({ ok: true, swap, ...hub });
+  } catch (err) {
+    console.error("POST /api/trades/offers/:offerId/accept error:", err);
+    return res.status(500).json({
+      ok: false,
+      error: "Failed to accept trade offer",
+      details: err?.message || String(err),
+    });
+  }
+});
+
+app.post("/api/trades/offers/:offerId/reject", async (req, res) => {
+  try {
+    const offerId = Number(req.params.offerId);
+    const parsed = TradeActionSchema.safeParse(req.body || {});
+    if (!Number.isFinite(offerId) || offerId <= 0 || !parsed.success) {
+      return res.status(400).json({ ok: false, error: parsed.success ? "Invalid offer id" : parsed.error.flatten() });
+    }
+    const walletAddress = normalizeWalletAddress(parsed.data.walletAddress);
+
+    const rows = await q(
+      `
+      SELECT o.id, o.offer_status, l.owner_wallet
+      FROM trade_offers o
+      JOIN trade_listings l ON l.id = o.listing_id
+      WHERE o.id = ?
+      LIMIT 1
+      `,
+      [offerId]
+    );
+    if (!rows.length) return res.status(404).json({ ok: false, error: "Trade offer not found" });
+    const offer = rows[0];
+    if (normalizeWalletAddress(offer.owner_wallet) !== walletAddress) {
+      return res.status(403).json({ ok: false, error: "Only the listing owner can reject this offer" });
+    }
+    if (offer.offer_status !== "pending") {
+      return res.status(400).json({ ok: false, error: "Trade offer is no longer pending" });
+    }
+
+    await db.query(`UPDATE trade_offers SET offer_status = 'rejected', updated_at = NOW() WHERE id = ?`, [offerId]);
+    const hub = await getTradeHubData(walletAddress);
+    return res.json({ ok: true, ...hub });
+  } catch (err) {
+    console.error("POST /api/trades/offers/:offerId/reject error:", err);
+    return res.status(500).json({
+      ok: false,
+      error: "Failed to reject trade offer",
+      details: err?.message || String(err),
+    });
+  }
+});
+
+app.post("/api/trades/listings/:listingId/cancel", async (req, res) => {
+  try {
+    const listingId = Number(req.params.listingId);
+    const parsed = TradeActionSchema.safeParse(req.body || {});
+    if (!Number.isFinite(listingId) || listingId <= 0 || !parsed.success) {
+      return res.status(400).json({ ok: false, error: parsed.success ? "Invalid listing id" : parsed.error.flatten() });
+    }
+    const walletAddress = normalizeWalletAddress(parsed.data.walletAddress);
+
+    const rows = await q(`SELECT id, owner_wallet, listing_status FROM trade_listings WHERE id = ? LIMIT 1`, [listingId]);
+    if (!rows.length) return res.status(404).json({ ok: false, error: "Trade listing not found" });
+    const listing = rows[0];
+    if (normalizeWalletAddress(listing.owner_wallet) !== walletAddress) {
+      return res.status(403).json({ ok: false, error: "Only the listing owner can cancel the listing" });
+    }
+    if (listing.listing_status !== "open") {
+      return res.status(400).json({ ok: false, error: "Only open listings can be cancelled" });
+    }
+
+    await db.query(`UPDATE trade_listings SET listing_status = 'cancelled', updated_at = NOW() WHERE id = ?`, [listingId]);
+    await db.query(
+      `UPDATE trade_offers SET offer_status = 'cancelled', updated_at = NOW() WHERE listing_id = ? AND offer_status = 'pending'`,
+      [listingId]
+    );
+
+    const hub = await getTradeHubData(walletAddress);
+    return res.json({ ok: true, ...hub });
+  } catch (err) {
+    console.error("POST /api/trades/listings/:listingId/cancel error:", err);
+    return res.status(500).json({
+      ok: false,
+      error: "Failed to cancel trade listing",
       details: err?.message || String(err),
     });
   }
@@ -4428,12 +5595,22 @@ app.get("/api/users/:wallet/inventory", async (req, res) => {
       [walletAddress]
     );
 
-    const ownedItemIds = [...new Set(rows.map((r) => r.item_id))];
+    const ownedFromDb = rows
+      .map((r) => r.item_id)
+      .filter((itemId) => !hasCosmeticsContractConfigured() || !isTokenizedAvatarItem(itemId));
+    const ownedFromChain = await getOnChainOwnedCosmeticItemIds(walletAddress);
+    const ownedItemIds = [...new Set([...ownedFromDb, ...ownedFromChain])];
 
     res.json({
       ok: true,
       walletAddress,
       ownedItemIds,
+      ownedItemIdsOnChain: ownedFromChain,
+      cosmetics: {
+        configured: hasCosmeticsContractConfigured(),
+        contractAddress: hasCosmeticsContractConfigured() ? COSMETICS_CONFIG.contractAddress : null,
+        chainId: hasCosmeticsContractConfigured() ? COSMETICS_CONFIG.chainId : null,
+      },
       purchases: rows.map((r) => ({
         itemId: r.item_id,
         itemName: r.item_name,
@@ -4447,6 +5624,52 @@ app.get("/api/users/:wallet/inventory", async (req, res) => {
     res.status(500).json({
       ok: false,
       error: "Failed to fetch inventory",
+      details: err?.message || String(err),
+    });
+  }
+});
+
+app.post("/api/users/:wallet/cosmetics/sync", async (req, res) => {
+  try {
+    const walletAddress = normalizeWalletAddress(req.params.wallet);
+
+    if (!walletAddress || walletAddress.length < 3 || !ethers.isAddress(walletAddress)) {
+      return res.status(400).json({ ok: false, error: "invalid wallet" });
+    }
+
+    const sync = await syncOwnedCosmeticsToChain(walletAddress);
+    const inventoryRows = await q(
+      `
+      SELECT item_id
+      FROM shop_purchases
+      WHERE wallet_address = ?
+      ORDER BY id ASC
+      `,
+      [walletAddress]
+    );
+    const ownedFromDb = inventoryRows
+      .map((row) => row.item_id)
+      .filter((itemId) => !hasCosmeticsContractConfigured() || !isTokenizedAvatarItem(itemId));
+    const ownedFromChain = await getOnChainOwnedCosmeticItemIds(walletAddress);
+    const ownedItemIds = [...new Set([...ownedFromDb, ...ownedFromChain])];
+
+    return res.json({
+      ok: true,
+      walletAddress,
+      sync,
+      ownedItemIds,
+      ownedItemIdsOnChain: ownedFromChain,
+      cosmetics: {
+        configured: hasCosmeticsContractConfigured(),
+        contractAddress: hasCosmeticsContractConfigured() ? COSMETICS_CONFIG.contractAddress : null,
+        chainId: hasCosmeticsContractConfigured() ? COSMETICS_CONFIG.chainId : null,
+      },
+    });
+  } catch (err) {
+    console.error("POST /api/users/:wallet/cosmetics/sync error:", err);
+    return res.status(500).json({
+      ok: false,
+      error: "Failed to sync owned cosmetics to NFTs",
       details: err?.message || String(err),
     });
   }
