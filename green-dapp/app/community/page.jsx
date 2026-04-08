@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useAccount, useChainId, usePublicClient, useSwitchChain, useWalletClient } from "wagmi";
 import { hardhat } from "wagmi/chains";
 import Nav from "../components/Nav";
@@ -10,6 +11,7 @@ import { apiDelete, apiGet, apiPost, communityName, fmt, formatLastActive, short
 
 export default function CommunityPage() {
   const { address, isConnected } = useAccount();
+  const searchParams = useSearchParams();
   const chainId = useChainId();
   const { switchChainAsync } = useSwitchChain();
   const { data: walletClient } = useWalletClient();
@@ -45,6 +47,7 @@ export default function CommunityPage() {
   const [groupChallengeDrafts, setGroupChallengeDrafts] = useState({});
   const [groupActionKey, setGroupActionKey] = useState("");
   const [confirmDeleteGroupId, setConfirmDeleteGroupId] = useState(null);
+  const [handledQrFriendWallet, setHandledQrFriendWallet] = useState("");
 
   async function loadLeaderboard() {
     setLoading(true);
@@ -155,6 +158,60 @@ export default function CommunityPage() {
     invites: social.pendingGroupInvites.length,
   };
 
+  useEffect(() => {
+    const qrWallet = String(searchParams?.get("addFriend") || "").trim().toLowerCase();
+    if (!mounted || !qrWallet || !walletReady || socialLoading) return;
+    if (handledQrFriendWallet === qrWallet) return;
+
+    if (qrWallet === String(address || "").toLowerCase()) {
+      setHandledQrFriendWallet(qrWallet);
+      setFriendWallet("");
+      setSocialMessage("You cannot add yourself from your own QR code.");
+      return;
+    }
+
+    const alreadyConnected =
+      social.friends.some((entry) => entry.walletAddress === qrWallet) ||
+      social.incomingRequests.some((entry) => entry.walletAddress === qrWallet) ||
+      social.outgoingRequests.some((entry) => entry.walletAddress === qrWallet);
+
+    if (alreadyConnected) {
+      setHandledQrFriendWallet(qrWallet);
+      setFriendWallet(qrWallet);
+      setSocialMessage("This QR friend link is already connected to your social state.");
+      return;
+    }
+
+    setHandledQrFriendWallet(qrWallet);
+    setFriendWallet(qrWallet);
+    setActiveSection("social");
+    setFriendActionKey(`send:${qrWallet}`);
+    setSocialMessage("");
+    (async () => {
+      try {
+        const json = await apiPost(`/api/users/${address}/friend-requests`, {
+          friendWallet: qrWallet,
+        });
+        setSocialFromResponse(json);
+        setSocialMessage(json?.autoAccepted ? "Mutual request detected, you are now friends." : "Friend request sent.");
+      } catch (e) {
+        setSocialMessage(String(e?.message || e));
+      } finally {
+        setFriendActionKey("");
+      }
+    })();
+  }, [
+    searchParams,
+    mounted,
+    walletReady,
+    socialLoading,
+    handledQrFriendWallet,
+    address,
+    social.friends,
+    social.incomingRequests,
+    social.outgoingRequests,
+  ]);
+
   function setSocialFromResponse(json) {
     setSocial((prev) => ({
       friends: json?.friends || [],
@@ -183,9 +240,10 @@ export default function CommunityPage() {
     }
   }
 
-  async function sendFriendRequest() {
-    if (!isConnected || !address || !friendWallet.trim()) return;
-    const nextWallet = friendWallet.trim();
+  async function sendFriendRequest(nextWalletOverride) {
+    if (!isConnected || !address) return;
+    const nextWallet = String(nextWalletOverride ?? friendWallet).trim();
+    if (!nextWallet) return;
     setFriendActionKey(`send:${nextWallet}`);
     setSocialMessage("");
     try {
@@ -193,7 +251,7 @@ export default function CommunityPage() {
         friendWallet: nextWallet,
       });
       setSocialFromResponse(json);
-      setFriendWallet("");
+      if (!nextWalletOverride) setFriendWallet("");
       setSocialMessage(json?.autoAccepted ? "Mutual request detected, you are now friends." : "Friend request sent.");
     } catch (e) {
       setSocialMessage(String(e?.message || e));

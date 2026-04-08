@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAccount, useConnect, useDisconnect, useChainId } from "wagmi";
 import Nav from "../components/Nav";
 import ClaimOnChainButton from "../../components/ClaimOnChainButton";
@@ -70,6 +70,7 @@ export default function ProfilePage() {
   const [info, setInfo] = useState("");
   const [claimLoading, setClaimLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [qrMessage, setQrMessage] = useState("");
 
   useEffect(() => setMounted(true), []);
 
@@ -154,6 +155,28 @@ export default function ProfilePage() {
   const tokenSymbol = data?.token || "GCT";
   const walletLabel = mounted ? (isConnected && address ? address : "Not connected") : "Loading wallet…";
 
+  const qrInviteUrl =
+    mounted && isConnected && address && typeof window !== "undefined"
+      ? `${window.location.origin}/community?addFriend=${address.toLowerCase()}`
+      : "";
+  const qrImageUrl = useMemo(
+    () =>
+      qrInviteUrl
+        ? `https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=${encodeURIComponent(qrInviteUrl)}`
+        : "",
+    [qrInviteUrl]
+  );
+
+  async function copyQrInviteUrl() {
+    if (!qrInviteUrl) return;
+    try {
+      await navigator.clipboard.writeText(qrInviteUrl);
+      setQrMessage("Friend QR link copied.");
+    } catch {
+      setQrMessage(qrInviteUrl);
+    }
+  }
+
   return (
     <div className="shell">
       <Nav />
@@ -188,8 +211,47 @@ export default function ProfilePage() {
           </div>
         </div>
 
+        <div className="card" style={{ gridColumn: "span 4" }}>
+          <div className="accent amber" />
+          <div className="card-inner">
+            <div className="section-title">Add Me By QR <span className="hint">quick friend invite</span></div>
+            {!mounted || !isConnected || !address ? (
+              <div className="small" style={{ marginTop: 14 }}>Connect wallet to generate your friend QR code.</div>
+            ) : (
+              <>
+                <div style={{ marginTop: 14, display: "flex", justifyContent: "center" }}>
+                  <img
+                    src={qrImageUrl}
+                    alt="Friend invite QR code"
+                    style={{
+                      width: 220,
+                      height: 220,
+                      borderRadius: 22,
+                      border: "1px solid rgba(255,255,255,.10)",
+                      background: "rgba(255,255,255,.96)",
+                      padding: 10,
+                    }}
+                  />
+                </div>
+                <div className="small" style={{ marginTop: 12 }}>
+                  Scanning this opens your community invite link and auto-fills the friend request flow.
+                </div>
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
+                  <button onClick={copyQrInviteUrl} style={btnStyle}>
+                    Copy invite link
+                  </button>
+                  <Link href="/community" className="pill" style={linkBtn}>
+                    Open community
+                  </Link>
+                </div>
+                {qrMessage ? <div className="small" style={{ marginTop: 10 }}>{qrMessage}</div> : null}
+              </>
+            )}
+          </div>
+        </div>
+
         {/* Wallet */}
-        <div className="card" style={{ gridColumn: "span 8" }}>
+        <div className="card" style={{ gridColumn: "span 4" }}>
           <div className="accent cyan" />
           <div className="card-inner">
             <div className="section-title">
