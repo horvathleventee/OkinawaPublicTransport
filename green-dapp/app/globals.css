@@ -620,3 +620,116 @@ code{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liber
 }
 .theme-emoji{ font-size: 14px; line-height: 1; }
 .theme-text{ letter-spacing: .02em; }
+
+/* ── Hamburger button (hidden on desktop) ───────────────────── */
+.nav-hamburger {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--nav-link-bg);
+  color: var(--nav-link-text);
+  cursor: pointer;
+  transition: background 120ms ease;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+.nav-hamburger:hover {
+  background: color-mix(in srgb, var(--nav-link-bg) 55%, var(--card2) 45%);
+}
+
+/* ── Mobile nav (≤ 768px) ────────────────────────────────────── */
+@media (max-width: 768px) {
+  .shell {
+    padding: 14px 12px 60px;
+  }
+
+  .nav {
+    flex-wrap: wrap;
+    padding: 11px 14px;
+    border-radius: 14px;
+    row-gap: 0;
+  }
+
+  .nav-left {
+    flex: 1;
+  }
+
+  .nav-hamburger {
+    display: flex;
+  }
+
+  /* Collapsed by default, expanded with .open */
+  .nav-links {
+    display: none;
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+    padding-top: 10px;
+    border-top: 1px solid var(--nav-border);
+    margin-top: 10px;
+  }
+
+  .nav-links.open {
+    display: flex;
+  }
+
+  .nav-link {
+    text-align: center;
+    padding: 10px 14px;
+  }
+
+  .theme-cycle-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* Topbar stack */
+  .topbar {
+    flex-direction: column;
+    gap: 10px;
+    align-items: flex-start;
+  }
+
+  .pills {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .h1 {
+    font-size: 18px;
+  }
+
+  /* Tables scroll horizontally */
+  .table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* KV list always single column */
+  .kv {
+    grid-template-columns: 1fr;
+  }
+
+  /* Metric value slightly smaller */
+  .metric-value {
+    font-size: 22px;
+  }
+
+  /* Shop grid 2 cols */
+  .shop-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ── Very small screens (≤ 520px) ───────────────────────────── */
+@media (max-width: 520px) {
+  .grid { grid-template-columns: repeat(1, minmax(0, 1fr)); }
+  .metric-value { font-size: 20px; }
+  .shop-grid { grid-template-columns: repeat(1, minmax(0, 1fr)); }
+  .theme-text { display: none; }
+  .theme-cycle-btn { min-width: auto; }
+}

@@ -356,11 +356,11 @@ async function getOnChainBalanceWei(walletAddress) {
     throw new Error("Invalid wallet address for on-chain balance");
   }
   if (!ethers.isAddress(GCT_CONFIG.contractAddress)) {
-    return 0n;
+    return { wei: 0n, status: "no_contract_configured" };
   }
   if (!(await isGctRpcReachable())) {
     console.warn("[GCT] RPC is unreachable, returning zero on-chain balance:", GCT_CONFIG.rpcUrl);
-    return 0n;
+    return { wei: 0n, status: "rpc_unreachable" };
   }
 
   const provider = getGctProvider();
@@ -370,7 +370,7 @@ async function getOnChainBalanceWei(walletAddress) {
       "[GCT] No contract code found at configured address, returning zero on-chain balance:",
       GCT_CONFIG.contractAddress
     );
-    return 0n;
+    return { wei: 0n, status: "contract_not_deployed" };
   }
 
   const data = gctReadInterface.encodeFunctionData("balanceOf", [walletAddress]);
@@ -384,17 +384,17 @@ async function getOnChainBalanceWei(walletAddress) {
         "[GCT] balanceOf returned empty data, returning zero on-chain balance:",
         GCT_CONFIG.contractAddress
       );
-      return 0n;
+      return { wei: 0n, status: "empty_response" };
     }
     const [balanceWei] = gctReadInterface.decodeFunctionResult("balanceOf", result);
-    return balanceWei;
+    return { wei: balanceWei, status: "ok" };
   } catch (error) {
     if (error?.code === "BAD_DATA" || error?.code === "CALL_EXCEPTION") {
       console.warn(
         "[GCT] Failed to read on-chain balance, returning zero on-chain balance:",
         error?.message || error
       );
-      return 0n;
+      return { wei: 0n, status: "call_failed" };
     }
     throw error;
   }
@@ -407,9 +407,9 @@ function getAvatarItemById(itemId) {
 
 function getCosmeticTokenId(itemId) {
   const items = loadAvatarItemManifest();
-  const index = items.findIndex((item) => String(item?.id || "") === String(itemId || ""));
-  if (index < 0) return null;
-  return COSMETIC_TOKEN_ID_OFFSET + index + 1;
+  const item = items.find((i) => String(i?.id || "") === String(itemId || ""));
+  if (!item) return null;
+  return Number.isFinite(item.tokenId) ? item.tokenId : null;
 }
 
 function isTokenizedAvatarItem(itemId) {
@@ -458,7 +458,7 @@ async function getOnChainOwnedCosmeticItemIds(walletAddress) {
   if (!code || code === "0x") return [];
 
   try {
-    const tokenIds = items.map((_, index) => BigInt(COSMETIC_TOKEN_ID_OFFSET + index + 1));
+    const tokenIds = items.map((item) => BigInt(item.tokenId));
     const accounts = tokenIds.map(() => walletAddress);
     const data = cosmeticsReadInterface.encodeFunctionData("balanceOfBatch", [accounts, tokenIds]);
     const result = await provider.call({
@@ -1277,8 +1277,11 @@ async function computeWalletRewards(wallet, options = {}) {
 
   const claimableTokens = Math.max(0, earned - claimedTokens);
   let onChainBalanceWei = 0n;
+  let onChainStatus = "skipped";
   if (includeOnChainBalance && ethers.isAddress(normalizedWallet)) {
-    onChainBalanceWei = await getOnChainBalanceWei(normalizedWallet);
+    const result = await getOnChainBalanceWei(normalizedWallet);
+    onChainBalanceWei = result.wei;
+    onChainStatus = result.status;
   }
   const onChainBalanceTokens = Number(ethers.formatUnits(onChainBalanceWei, GCT_DECIMALS));
   const spendableTokensOnChain = onChainBalanceTokens;
@@ -1299,6 +1302,7 @@ async function computeWalletRewards(wallet, options = {}) {
     onChainBalanceWei: onChainBalanceWei.toString(),
     onChainBalanceTokens: Number(onChainBalanceTokens.toFixed(6)),
     spendableTokensOnChain: Number(spendableTokensOnChain.toFixed(6)),
+    onChainStatus,
     breakdown: {
       tripsByType,
       distanceKm: Number(distanceKm.toFixed(2)),
@@ -1693,6 +1697,23 @@ async function ensureAvatarSocialFeatureTables() {
       KEY idx_trade_offers_listing (listing_id),
       KEY idx_trade_offers_offerer (offerer_wallet),
       KEY idx_trade_offers_status (offer_status)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS notifications (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+      wallet_address VARCHAR(42) NOT NULL,
+      type VARCHAR(64) NOT NULL,
+      title VARCHAR(120) NOT NULL,
+      body VARCHAR(255) NOT NULL,
+      ref_type VARCHAR(32) NULL,
+      ref_id BIGINT UNSIGNED NULL,
+      is_read TINYINT(1) NOT NULL DEFAULT 0,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      KEY idx_notifications_wallet (wallet_address),
+      KEY idx_notifications_read (wallet_address, is_read),
+      KEY idx_notifications_created (created_at)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
   await ensureGroupChallengeColumns();
@@ -2143,6 +2164,23 @@ async function getFriendSocialData(wallet) {
   return { friends, incomingRequests, outgoingRequests };
 }
 
+// ----------------------------------------------------
+// NOTIFICATIONS
+// ----------------------------------------------------
+async function notify(walletAddress, { type, title, body, refType = null, refId = null }) {
+  const wallet = normalizeWalletAddress(walletAddress);
+  if (!wallet || wallet.length < 6) return;
+  try {
+    await db.query(
+      `INSERT INTO notifications (wallet_address, type, title, body, ref_type, ref_id, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, NOW())`,
+      [wallet, type, title.slice(0, 120), body.slice(0, 255), refType, refId ?? null]
+    );
+  } catch (e) {
+    console.warn("[notify] Failed to insert notification:", e?.message || e);
+  }
+}
+
 async function sendFriendRequest(wallet, friendWallet) {
   const requester = normalizeWalletAddress(wallet);
   const addressee = await resolveWalletOrDisplayName(friendWallet);
@@ -2179,6 +2217,13 @@ async function sendFriendRequest(wallet, friendWallet) {
     `,
     [requester, addressee]
   );
+
+  await notify(addressee, {
+    type: "friend_request",
+    title: "New friend request",
+    body: `${requester.slice(0, 6)}...${requester.slice(-4)} sent you a friend request.`,
+    refType: "friend_request",
+  });
 
   return { autoAccepted: false };
 }
@@ -2529,6 +2574,16 @@ async function inviteToGroup(groupId, inviterWallet, inviteeWallet) {
     `,
     [groupId, inviter, invitee]
   );
+
+  const groupInfo = await q(`SELECT name FROM groups_social WHERE id = ? LIMIT 1`, [groupId]);
+  const groupName = groupInfo[0]?.name || `Group #${groupId}`;
+  await notify(invitee, {
+    type: "group_invite",
+    title: "Group invitation",
+    body: `You were invited to join "${groupName}".`,
+    refType: "group",
+    refId: groupId,
+  });
 }
 
 async function getPendingGroupInvites(wallet) {
@@ -4162,6 +4217,19 @@ app.post("/api/groups/:groupId/challenge", async (req, res) => {
       ]
     );
     const group = await buildGroupDetails(groupId);
+    // notify all group members about the new challenge
+    const memberWallets = (group.members || []).map((m) => m.wallet || m.walletAddress).filter(Boolean);
+    await Promise.all(
+      memberWallets.map((w) =>
+        notify(w, {
+          type: "group_challenge",
+          title: "New group challenge",
+          body: `"${parsed.data.title.trim()}" started in your group — ${targetKm} km target.`,
+          refType: "group",
+          refId: groupId,
+        })
+      )
+    );
     res.json({ ok: true, group });
   } catch (e) {
     console.error("POST /api/groups/:groupId/challenge error:", e);
@@ -4178,6 +4246,22 @@ app.post("/api/groups/:groupId/crown-claim", async (req, res) => {
     }
     const result = await claimGroupCrownReward(groupId, parsed.data.walletAddress, parsed.data.txHash, parsed.data.chainId);
     const group = await buildGroupDetails(groupId, parsed.data.walletAddress);
+    // notify other group members that crown was claimed
+    const claimerWallet = normalizeWalletAddress(parsed.data.walletAddress);
+    const otherMembers = (group.members || [])
+      .map((m) => normalizeWalletAddress(m.wallet || m.walletAddress))
+      .filter((w) => w && w !== claimerWallet);
+    await Promise.all(
+      otherMembers.map((w) =>
+        notify(w, {
+          type: "crown_claimed",
+          title: "Crown claimed!",
+          body: `A team member claimed the Group Crown reward in "${group.name || `Group #${groupId}`}".`,
+          refType: "group",
+          refId: groupId,
+        })
+      )
+    );
     res.json({ ok: true, group, ...result });
   } catch (e) {
     console.error("POST /api/groups/:groupId/crown-claim error:", e);
@@ -5387,6 +5471,17 @@ app.post("/api/trades/listings/:listingId/offers", async (req, res) => {
       [listingId, walletAddress, offeredItemId, note]
     );
 
+    const listingOwner = normalizeWalletAddress(listing.owner_wallet);
+    const offeredItem = getAvatarItemById(offeredItemId);
+    const wantedItem = getAvatarItemById(listing.item_id);
+    await notify(listingOwner, {
+      type: "trade_offer",
+      title: "New trade offer",
+      body: `Someone offered "${offeredItem?.name || offeredItemId}" for your "${wantedItem?.name || listing.item_id}".`,
+      refType: "trade_listing",
+      refId: listingId,
+    });
+
     const hub = await getTradeHubData(walletAddress);
     return res.json({ ok: true, ...hub });
   } catch (err) {
@@ -5444,6 +5539,16 @@ app.post("/api/trades/offers/:offerId/accept", async (req, res) => {
     );
     await db.query(`UPDATE trade_listings SET listing_status = 'accepted', updated_at = NOW() WHERE id = ?`, [offer.listing_id]);
 
+    const offeredItemMeta = getAvatarItemById(offer.offered_item_id);
+    const listedItemMeta = getAvatarItemById(offer.item_id);
+    await notify(normalizeWalletAddress(offer.offerer_wallet), {
+      type: "trade_accepted",
+      title: "Trade accepted!",
+      body: `Your offer of "${offeredItemMeta?.name || offer.offered_item_id}" was accepted. You received "${listedItemMeta?.name || offer.item_id}".`,
+      refType: "trade_listing",
+      refId: offer.listing_id,
+    });
+
     const hub = await getTradeHubData(walletAddress);
     return res.json({ ok: true, swap, ...hub });
   } catch (err) {
@@ -5485,6 +5590,23 @@ app.post("/api/trades/offers/:offerId/reject", async (req, res) => {
     }
 
     await db.query(`UPDATE trade_offers SET offer_status = 'rejected', updated_at = NOW() WHERE id = ?`, [offerId]);
+
+    const rows2 = await q(
+      `SELECT o.offerer_wallet, o.offered_item_id, l.item_id, l.id AS listing_id FROM trade_offers o JOIN trade_listings l ON l.id = o.listing_id WHERE o.id = ? LIMIT 1`,
+      [offerId]
+    );
+    if (rows2.length) {
+      const r = rows2[0];
+      const offeredMeta = getAvatarItemById(r.offered_item_id);
+      await notify(normalizeWalletAddress(r.offerer_wallet), {
+        type: "trade_rejected",
+        title: "Trade offer declined",
+        body: `Your offer of "${offeredMeta?.name || r.offered_item_id}" was declined.`,
+        refType: "trade_listing",
+        refId: r.listing_id,
+      });
+    }
+
     const hub = await getTradeHubData(walletAddress);
     return res.json({ ok: true, ...hub });
   } catch (err) {
@@ -5675,6 +5797,7 @@ app.post("/api/users/:wallet/cosmetics/sync", async (req, res) => {
   }
 });
 
+
 // ----------------------------------------------------
 // ROUTES: DUMMY CONTROL
 // ----------------------------------------------------
@@ -5760,6 +5883,81 @@ app.post("/api/dummy/once", async (_req, res) => {
   } catch (e) {
     console.error("POST /api/dummy/once error:", e);
     res.status(500).json({ error: "Failed to generate dummy event", details: e?.message || String(e) });
+  }
+});
+
+// ----------------------------------------------------
+// NOTIFICATIONS ENDPOINTS
+// ----------------------------------------------------
+app.get("/api/users/:wallet/notifications", async (req, res) => {
+  try {
+    const wallet = normalizeWalletAddress(req.params.wallet);
+    if (!wallet || wallet.length < 6) {
+      return res.status(400).json({ error: "invalid wallet param" });
+    }
+    const limit = Math.min(50, Math.max(1, Number(req.query.limit || 20)));
+    const rows = await q(
+      `SELECT id, type, title, body, ref_type, ref_id, is_read, created_at
+       FROM notifications
+       WHERE wallet_address = ?
+       ORDER BY id DESC
+       LIMIT ?`,
+      [wallet, limit]
+    );
+    const unreadCount = rows.filter((r) => !r.is_read).length;
+    res.json({
+      ok: true,
+      walletAddress: wallet,
+      unreadCount,
+      notifications: rows.map((r) => ({
+        id: Number(r.id),
+        type: r.type,
+        title: r.title,
+        body: r.body,
+        refType: r.ref_type,
+        refId: r.ref_id ? Number(r.ref_id) : null,
+        isRead: Boolean(r.is_read),
+        createdAt: toIsoMaybe(r.created_at),
+      })),
+    });
+  } catch (e) {
+    console.error("GET /api/users/:wallet/notifications error:", e);
+    res.status(500).json({ error: "Failed to fetch notifications", details: e?.message || String(e) });
+  }
+});
+
+app.patch("/api/users/:wallet/notifications/read-all", async (req, res) => {
+  try {
+    const wallet = normalizeWalletAddress(req.params.wallet);
+    if (!wallet || wallet.length < 6) {
+      return res.status(400).json({ error: "invalid wallet param" });
+    }
+    await db.query(
+      `UPDATE notifications SET is_read = 1 WHERE wallet_address = ? AND is_read = 0`,
+      [wallet]
+    );
+    res.json({ ok: true, walletAddress: wallet });
+  } catch (e) {
+    console.error("PATCH /api/users/:wallet/notifications/read-all error:", e);
+    res.status(500).json({ error: "Failed to mark notifications as read", details: e?.message || String(e) });
+  }
+});
+
+app.patch("/api/users/:wallet/notifications/:id/read", async (req, res) => {
+  try {
+    const wallet = normalizeWalletAddress(req.params.wallet);
+    const id = Number(req.params.id);
+    if (!wallet || wallet.length < 6 || !Number.isFinite(id) || id <= 0) {
+      return res.status(400).json({ error: "invalid params" });
+    }
+    await db.query(
+      `UPDATE notifications SET is_read = 1 WHERE id = ? AND wallet_address = ?`,
+      [id, wallet]
+    );
+    res.json({ ok: true, walletAddress: wallet, id });
+  } catch (e) {
+    console.error("PATCH /api/users/:wallet/notifications/:id/read error:", e);
+    res.status(500).json({ error: "Failed to mark notification as read", details: e?.message || String(e) });
   }
 });
 
