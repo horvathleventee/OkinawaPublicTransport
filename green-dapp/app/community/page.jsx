@@ -159,6 +159,13 @@ export default function CommunityPage() {
   };
 
   useEffect(() => {
+    const section = String(searchParams?.get("section") || "").trim().toLowerCase();
+    if (section === "social" || section === "groups" || section === "leaderboard") {
+      setActiveSection(section);
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
     const qrWallet = String(searchParams?.get("addFriend") || "").trim().toLowerCase();
     if (!mounted || !qrWallet || !walletReady || socialLoading) return;
     if (handledQrFriendWallet === qrWallet) return;
