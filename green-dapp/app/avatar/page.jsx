@@ -134,6 +134,7 @@ export default function AvatarPage() {
   const [transferBusy, setTransferBusy] = useState(false);
 
   const saveTimerRef = useRef(null);
+  const pendingSaveRef = useRef(null);
   const dragHandleRef = useRef(null);
   const stageRef = useRef(null);
   const dragStateRef = useRef({ dragging: false, startX: 0, startY: 0, startOx: 0, startOy: 0 });
@@ -225,28 +226,43 @@ export default function AvatarPage() {
         );
 
         if (layoutJson?.exists && layoutJson?.layout) {
+          const ownedSet = new Set(ownedFromApi);
+          const rawEquipped = {
+            ...(local?.equipped || {}),
+            ...(layoutJson.layout.equipped || {}),
+          };
+          if (layoutJson.layout.character) {
+            rawEquipped.character = layoutJson.layout.character;
+          }
+          // Drop equipped items no longer owned (e.g. after local Hardhat chain reset)
+          const validEquipped = Object.fromEntries(
+            Object.entries(rawEquipped).filter(
+              ([slot, itemId]) => slot === "character" || !itemId || ownedSet.has(itemId)
+            )
+          );
+
           const next = {
             ...local,
             owned: ownedFromApi,
-            equipped: {
-              ...(local?.equipped || {}),
-              ...(layoutJson.layout.equipped || {}),
-            },
+            equipped: validEquipped,
             offsets: {
               ...(local?.offsets || {}),
               ...(layoutJson.layout.offsets || {}),
             },
           };
 
-          if (layoutJson.layout.character) {
-            next.equipped = next.equipped || {};
-            next.equipped.character = layoutJson.layout.character;
-          }
-
           saveInventory(key, next);
           setInv(next);
           setStorageStatus("api");
           setLayoutMessage("Loaded from API/MySQL");
+
+          // Ha volt stale item (pl. chain reset után), a kiszűrt layoutot a DB-be is visszamentjük
+          const hadStaleItems = Object.keys(rawEquipped).some(
+            (slot) => slot !== "character" && rawEquipped[slot] && !ownedSet.has(rawEquipped[slot])
+          );
+          if (hadStaleItems) {
+            saveLayoutToApi(address, next).catch(() => {});
+          }
         } else {
           const next = {
             ...local,
@@ -295,10 +311,14 @@ export default function AvatarPage() {
     setStorageStatus("api");
     setLayoutMessage("Saving to API/MySQL...");
 
+    pendingSaveRef.current = { walletAddress: address, inv: next };
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(async () => {
+      const pending = pendingSaveRef.current;
+      if (!pending) return;
+      pendingSaveRef.current = null;
       try {
-        await saveLayoutToApi(address, next);
+        await saveLayoutToApi(pending.walletAddress, pending.inv);
         setStorageStatus("api");
         setLayoutMessage("Saved to API/MySQL");
       } catch (e) {
@@ -312,6 +332,11 @@ export default function AvatarPage() {
   useEffect(() => {
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      const pending = pendingSaveRef.current;
+      pendingSaveRef.current = null;
+      if (pending?.walletAddress && pending?.inv) {
+        saveLayoutToApi(pending.walletAddress, pending.inv).catch(() => {});
+      }
     };
   }, []);
 
@@ -387,15 +412,6 @@ export default function AvatarPage() {
     const next = structuredClone(inv);
     next.equipped = next.equipped || {};
     next.equipped.character = nextCharacter;
-
-    for (const slot of AVATAR_SLOTS) {
-      const itemId = next.equipped[slot];
-      if (!itemId) continue;
-      const item = items.find((it) => it.id === itemId);
-      if (item && !isItemCompatibleWithCharacter(item, nextCharacter)) {
-        delete next.equipped[slot];
-      }
-    }
 
     persist(next);
   }
