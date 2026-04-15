@@ -14,6 +14,7 @@ import {
   AVATAR_BACKGROUND_SLOT,
   AVATAR_SLOTS,
   AVATAR_SLOT_HINTS,
+  AVATAR_SLOT_ICONS,
   AVATAR_SLOT_LABELS,
   createEmptySlotMap,
   getItemCollectionSlot,
@@ -1032,20 +1033,21 @@ export default function AvatarPage() {
                     key={slot}
                     type="button"
                     onClick={() => setActiveWardrobeSlot(slot)}
+                    className="slot-tab-btn"
                     style={{
-                      ...slotTab,
-                      opacity: activeWardrobeSlot === slot ? 1 : 0.8,
+                      opacity: activeWardrobeSlot === slot ? 1 : 0.7,
                       border:
                         activeWardrobeSlot === slot
                           ? "1px solid rgba(34,211,238,.9)"
-                          : slotTab.border,
+                          : "1px solid var(--ui-soft-border)",
                       background:
                         activeWardrobeSlot === slot
                           ? "color-mix(in srgb, var(--ui-soft-bg) 62%, var(--card2) 38%)"
-                          : slotTab.background,
+                          : "var(--ui-soft-bg)",
                     }}
                   >
-                    {AVATAR_SLOT_LABELS[slot] || slot}
+                    <span style={{ fontSize: 18 }}>{AVATAR_SLOT_ICONS[slot]}</span>
+                    <span className="slot-tab-label">{AVATAR_SLOT_LABELS[slot] || slot}</span>
                   </button>
                 ))}
               </div>

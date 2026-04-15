@@ -177,289 +177,224 @@ export default function ProfilePage() {
     }
   }
 
+  const activityFeed = useMemo(() => {
+    const items = [
+      ...claims.map((c) => ({
+        type: "claim",
+        id: `claim-${c.id}`,
+        label: `Claimed ${fmt(c.amountTokens, 2)} ${tokenSymbol}`,
+        sub: c.claimStatus,
+        date: c.createdAt,
+        accent: "#34d399",
+        raw: c,
+      })),
+      ...purchases.map((p) => ({
+        type: "purchase",
+        id: `purchase-${p.id}`,
+        label: `Bought ${p.itemName || p.itemId}`,
+        sub: p.slotName || p.purchaseMode || "shop",
+        date: p.createdAt,
+        accent: "#fbbf24",
+        raw: p,
+      })),
+    ];
+    return items.sort((a, b) => new Date(b.date) - new Date(a.date));
+  }, [claims, purchases, tokenSymbol]);
+
+  const claimablePercent = useMemo(() => {
+    const earned = Number(data?.earnedTokens || 0);
+    const claimed = Number(data?.claimedTokens || 0);
+    if (!earned) return 0;
+    return Math.min(100, Math.round((claimed / earned) * 100));
+  }, [data]);
+
   return (
     <div className="shell">
       <Nav />
-      <div className="topbar">
-        <div className="title">
-          <h1 className="h1">Profile</h1>
-          <p className="subtitle">Rewards + claims + purchases. Submitted claims can be completed on-chain.</p>
+
+      {/* ── HERO ─────────────────────────────────────────── */}
+      <div className="profile-hero">
+        <div className="profile-hero-avatar">
+          <AvatarShowcase layout={avatarLayout} size={220} rounded={22} />
+          <div className="profile-hero-avatar-actions">
+            <Link href="/avatar" className="pill" style={linkBtn}>Edit avatar</Link>
+            {mounted && isConnected && address ? (
+              <Link href={`/community/${address.toLowerCase()}`} className="pill" style={linkBtn}>Public profile</Link>
+            ) : null}
+          </div>
         </div>
+
+        <div className="profile-hero-info">
+          <div className="profile-hero-address">
+            {mounted && isConnected && address ? (
+              <>
+                <span className="profile-hero-addr-short">{shortAddr(address)}</span>
+                <span className="profile-hero-addr-full mono">{address}</span>
+              </>
+            ) : (
+              <span className="profile-hero-addr-short">Not connected</span>
+            )}
+            <span className="profile-hero-chain">Chain {chainId}</span>
+          </div>
+
+          <div className="profile-hero-stats">
+            <div className="profile-stat">
+              <div className="profile-stat-value">{data ? fmt(data.earnedTokens, 2) : "—"}</div>
+              <div className="profile-stat-label">GCT earned</div>
+            </div>
+            <div className="profile-stat-divider" />
+            <div className="profile-stat">
+              <div className="profile-stat-value">{data ? fmt(data.spendableTokensOnChain, 2) : "—"}</div>
+              <div className="profile-stat-label">on-chain</div>
+            </div>
+            <div className="profile-stat-divider" />
+            <div className="profile-stat">
+              <div className="profile-stat-value">{data ? fmt(data.eventsCount, 0) : "—"}</div>
+              <div className="profile-stat-label">trips</div>
+            </div>
+            <div className="profile-stat-divider" />
+            <div className="profile-stat">
+              <div className="profile-stat-value">{data ? fmt(data.breakdown?.co2SavedKg, 1) : "—"}</div>
+              <div className="profile-stat-label">kg CO₂ saved</div>
+            </div>
+          </div>
+
+          {/* Claimed progress bar */}
+          {data ? (
+            <div className="profile-progress-wrap">
+              <div className="profile-progress-labels">
+                <span>Claimed {fmt(data.claimedTokens, 2)} {tokenSymbol}</span>
+                <span>{claimablePercent}% of earned</span>
+              </div>
+              <div className="profile-progress-track">
+                <div className="profile-progress-fill" style={{ width: `${claimablePercent}%` }} />
+              </div>
+              <div className="profile-progress-labels" style={{ marginTop: 4 }}>
+                <span style={{ color: "rgba(52,211,153,.9)", fontWeight: 700 }}>
+                  {fmt(data.claimableTokens, 2)} {tokenSymbol} claimable
+                </span>
+                <span>{fmt(data.breakdown?.distanceKm, 1)} km total</span>
+              </div>
+            </div>
+          ) : null}
+
+          <div className="profile-hero-actions">
+            {!mounted ? null : !isConnected ? (
+              connectors.map((c) => (
+                <button key={c.id} onClick={() => connect({ connector: c })} disabled={isPending} style={btnStyle}>
+                  Connect {c.name}
+                </button>
+              ))
+            ) : (
+              <>
+                <button onClick={() => loadAll(address, { silent: true })} style={btnStyle}>
+                  {refreshing ? "Refreshing…" : "Refresh"}
+                </button>
+                <button onClick={() => { disconnect(); setData(null); setClaimPreview(null); setClaims([]); setPurchases([]); setAvatarLayout(null); setClaimAmount(""); setErr(""); setInfo(""); }} style={btnStyle2}>
+                  Disconnect
+                </button>
+              </>
+            )}
+          </div>
+
+          {err && <div className="error" style={{ marginTop: 10 }}>Error: {err}</div>}
+          {info && <div className="profile-info-msg">{info}</div>}
+        </div>
+
+        {/* QR */}
+        {mounted && isConnected && address ? (
+          <div className="profile-hero-qr">
+            <div className="profile-qr-label">Friend QR</div>
+            <img src={qrImageUrl} alt="Friend invite QR" className="profile-qr-img" />
+            <button onClick={copyQrInviteUrl} style={{ ...btnStyle, fontSize: 12, padding: "7px 12px", marginTop: 8 }}>
+              Copy invite link
+            </button>
+            {qrMessage ? <div className="small" style={{ marginTop: 6, textAlign: "center" }}>{qrMessage}</div> : null}
+          </div>
+        ) : null}
       </div>
 
       <div className="grid">
-        <div className="card" style={{ gridColumn: "span 4" }}>
-          <div className="accent green" />
-          <div className="card-inner">
-            <div className="section-title">Avatar <span className="hint">current look</span></div>
-            <div style={{ marginTop: 14, display: "flex", justifyContent: "center" }}>
-              <AvatarShowcase layout={avatarLayout} size={280} rounded={26} />
-            </div>
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 14 }}>
-              <Link href="/avatar" className="pill" style={linkBtn}>
-                Edit avatar
-              </Link>
-              {mounted && isConnected && address ? (
-                <Link href={`/community/${address.toLowerCase()}`} className="pill" style={linkBtn}>
-                  Open public profile
-                </Link>
-              ) : null}
-            </div>
-            <div className="small" style={{ marginTop: 10 }}>
-              Use the Avatar page for wardrobe, presets and outfit positioning.
-            </div>
-          </div>
-        </div>
 
-        <div className="card" style={{ gridColumn: "span 4" }}>
-          <div className="accent amber" />
-          <div className="card-inner">
-            <div className="section-title">Add Me By QR <span className="hint">quick friend invite</span></div>
-            {!mounted || !isConnected || !address ? (
-              <div className="small" style={{ marginTop: 14 }}>Connect wallet to generate your friend QR code.</div>
-            ) : (
-              <>
-                <div style={{ marginTop: 14, display: "flex", justifyContent: "center" }}>
-                  <img
-                    src={qrImageUrl}
-                    alt="Friend invite QR code"
-                    style={{
-                      width: 220,
-                      height: 220,
-                      borderRadius: 22,
-                      border: "1px solid rgba(255,255,255,.10)",
-                      background: "rgba(255,255,255,.96)",
-                      padding: 10,
-                    }}
-                  />
-                </div>
-                <div className="small" style={{ marginTop: 12 }}>
-                  Scanning this opens your community invite link and auto-fills the friend request flow.
-                </div>
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
-                  <button onClick={copyQrInviteUrl} style={btnStyle}>
-                    Copy invite link
-                  </button>
-                  <Link href="/community" className="pill" style={linkBtn}>
-                    Open community
-                  </Link>
-                </div>
-                {qrMessage ? <div className="small" style={{ marginTop: 10 }}>{qrMessage}</div> : null}
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* Wallet */}
-        <div className="card" style={{ gridColumn: "span 4" }}>
-          <div className="accent cyan" />
-          <div className="card-inner">
-            <div className="section-title">
-              Wallet <span className="hint">{API}</span>
-            </div>
-
-            {!mounted ? (
-              <div className="small">Loading wallet state…</div>
-            ) : !isConnected ? (
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                {connectors.map((c) => (
-                  <button key={c.id} onClick={() => connect({ connector: c })} disabled={isPending} style={btnStyle}>
-                    Connect {c.name}
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <div style={{ display: "flex", gap: 12, alignItems: "center", justifyContent: "space-between", flexWrap: "wrap" }}>
-                <div>
-                  <div className="small">Address</div>
-                  <div className="mono" style={{ fontSize: 14 }}>{walletLabel}</div>
-                  <div className="small" style={{ marginTop: 6 }}>
-                    ChainId: <span className="mono">{chainId}</span>
-                  </div>
-                </div>
-
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                  <button onClick={() => loadAll(address, { silent: true })} style={btnStyle}>
-                    {refreshing ? "Refreshing…" : "Refresh"}
-                  </button>
-                  <button
-                    onClick={() => {
-                      disconnect();
-                      setData(null);
-                      setClaimPreview(null);
-                      setClaims([]);
-                      setPurchases([]);
-                      setAvatarLayout(null);
-                      setClaimAmount("");
-                      setErr("");
-                      setInfo("");
-                    }}
-                    style={btnStyle2}
-                  >
-                    Disconnect
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {err && <div className="error" style={{ marginTop: 12 }}>Error: {err}</div>}
-
-            {info && (
-              <div style={{ marginTop: 12, border: "1px solid rgba(52,211,153,.25)", background: "rgba(52,211,153,.08)", color: "rgba(255,255,255,.92)", borderRadius: 14, padding: "12px 14px" }}>
-                {info}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Metrics */}
-        <MetricCard colSpan={3} accent="green" title="Earned" value={data ? data.earnedTokens : mounted && isConnected ? "…" : "—"} unit={tokenSymbol} badge="from trips" />
-        <MetricCard colSpan={3} accent="amber" title="On-chain" value={data ? data.spendableTokensOnChain : mounted && isConnected ? "…" : "—"} unit={tokenSymbol} badge="shop spendable" />
-        <MetricCard colSpan={3} accent="cyan" title="Claimed" value={data ? data.claimedTokens : mounted && isConnected ? "…" : "—"} unit={tokenSymbol} badge="claims" />
-        <MetricCard colSpan={3} accent="" title="Claimable" value={data ? data.claimableTokens : mounted && isConnected ? "…" : "—"} unit={tokenSymbol} badge="from trips" />
-
-        <MetricCard colSpan={4} accent="green" title="Events" value={data ? data.eventsCount : mounted && isConnected ? "…" : "—"} unit="events" badge={mounted && isConnected && address ? shortAddr(address) : "no wallet"} />
-        <MetricCard colSpan={4} accent="amber" title="Distance" value={data ? data.breakdown?.distanceKm : mounted && isConnected ? "…" : "—"} unit="km" badge="sum" />
-        <MetricCard colSpan={4} accent="cyan" title="CO₂ saved" value={data ? data.breakdown?.co2SavedKg : mounted && isConnected ? "…" : "—"} unit="kg" badge="estimate" />
-
-        {/* Claim create */}
+        {/* ── CLAIM ───────────────────────────────────────── */}
         <div className="card" style={{ gridColumn: "span 12" }}>
           <div className="accent green" />
           <div className="card-inner">
-            <div className="section-title">Create Claim <span className="hint">(status: submitted)</span></div>
-
+            <div className="section-title">Claim GCT <span className="hint">on-chain flow</span></div>
             {!mounted || !isConnected ? (
               <div className="small">Connect wallet first.</div>
             ) : (
-              <>
-                <div style={{ display: "flex", gap: 12, alignItems: "end", flexWrap: "wrap", marginTop: 8 }}>
-                  <div>
-                    <div className="small" style={{ marginBottom: 6 }}>Claim preview</div>
-                    <div className="mono">{claimPreview ? `${claimPreview.claimableTokens} ${tokenSymbol}` : "Loading…"}</div>
-                  </div>
-
-                  <div>
-                    <div className="small" style={{ marginBottom: 6 }}>Amount to claim</div>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.001"
-                      value={claimAmount}
-                      onChange={(e) => setClaimAmount(e.target.value)}
-                      placeholder={`e.g. ${data?.claimableTokens || 10}`}
-                      style={inputStyle}
-                    />
-                  </div>
-
+              <div className="profile-claim-row">
+                <div className="profile-claim-preview">
+                  <div className="profile-claim-amount">{claimPreview ? fmt(claimPreview.claimableTokens, 2) : "—"}</div>
+                  <div className="small">claimable {tokenSymbol}</div>
+                </div>
+                <div className="profile-claim-form">
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.001"
+                    value={claimAmount}
+                    onChange={(e) => setClaimAmount(e.target.value)}
+                    placeholder={`e.g. ${data?.claimableTokens || 10}`}
+                    style={{ ...inputStyle, flex: 1, minWidth: 140 }}
+                  />
                   <button onClick={createClaim} disabled={claimLoading} style={btnStyle}>
-                    {claimLoading ? "Creating claim…" : "Create Claim"}
+                    {claimLoading ? "Creating…" : "Create Claim"}
                   </button>
                 </div>
-
-                <div className="small" style={{ marginTop: 10 }}>
-                  Next step: use the &quot;Claim on-chain&quot; action in claim history.
+                <div className="small" style={{ color: "var(--muted)", marginTop: 6 }}>
+                  After creating, use &ldquo;Claim on-chain&rdquo; in the history below.
                 </div>
-              </>
+              </div>
             )}
           </div>
         </div>
 
-        {/* Claim history */}
+        {/* ── ACTIVITY FEED ───────────────────────────────── */}
         <div className="card" style={{ gridColumn: "span 12" }}>
           <div className="accent cyan" />
           <div className="card-inner">
-            <div className="section-title">Claim history <span className="hint">(on-chain flow)</span></div>
-
-            <div className="table-wrap">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>Status</th>
-                    <th className="right">Amount</th>
-                    <th>Nonce</th>
-                    <th>Created</th>
-                    <th>Expiry</th>
-                    <th className="right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {!mounted || !isConnected ? (
-                    <tr><td colSpan={7} className="small">Connect wallet first.</td></tr>
-                  ) : claims.length === 0 ? (
-                    <tr><td colSpan={7} className="small">No claims yet.</td></tr>
-                  ) : (
-                    claims.map((c) => {
-                      const isSubmitted = c.claimStatus === "submitted";
-                      return (
-                        <tr key={c.id}>
-                          <td className="mono">{c.id}</td>
-                          <td>{c.claimStatus}</td>
-                          <td className="right">{fmt(c.amountTokens, 3)} {tokenSymbol}</td>
-                          <td className="mono">{c.nonce || "—"}</td>
-                          <td>{fmtDate(c.createdAt)}</td>
-                          <td>{c.expiryTsMs ? fmtDate(c.expiryTsMs) : "—"}</td>
-                          <td className="right" style={{ whiteSpace: "nowrap" }}>
-                            {isSubmitted ? (
-                              <ClaimOnChainButton
-                                claim={c}
-                                onDone={async () => {
-                                  setInfo(`Claim #${c.id} confirmed on-chain.`);
-                                  if (address) await loadAll(address, { silent: true });
-                                }}
-                              />
-                            ) : (
-                              <span className="small">—</span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+              <div className="section-title" style={{ marginBottom: 0 }}>Activity feed</div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <span className="badge" style={{ background: "rgba(52,211,153,.12)", color: "#34d399" }}>● Claims</span>
+                <span className="badge" style={{ background: "rgba(251,191,36,.12)", color: "#fbbf24" }}>● Purchases</span>
+              </div>
             </div>
-          </div>
-        </div>
 
-        {/* Purchase history */}
-        <div className="card" style={{ gridColumn: "span 12" }}>
-          <div className="accent amber" />
-          <div className="card-inner">
-            <div className="section-title">Purchase history <span className="hint">(shop_purchases)</span></div>
-
-            <div className="table-wrap">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>Item</th>
-                    <th>Slot</th>
-                    <th className="right">Price</th>
-                    <th>Mode</th>
-                    <th>Created</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {!mounted || !isConnected ? (
-                    <tr><td colSpan={6} className="small">Connect wallet first.</td></tr>
-                  ) : purchases.length === 0 ? (
-                    <tr><td colSpan={6} className="small">No purchases yet.</td></tr>
-                  ) : (
-                    purchases.map((p) => (
-                      <tr key={p.id}>
-                        <td className="mono">{p.id}</td>
-                        <td>{p.itemName || p.itemId}</td>
-                        <td>{p.slotName || "—"}</td>
-                        <td className="right">{fmt(p.priceTokens, 3)} {tokenSymbol}</td>
-                        <td>{p.purchaseMode || "api"}</td>
-                        <td>{fmtDate(p.createdAt)}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+            {!mounted || !isConnected ? (
+              <div className="small" style={{ marginTop: 14 }}>Connect wallet first.</div>
+            ) : activityFeed.length === 0 ? (
+              <div className="small" style={{ marginTop: 14 }}>No activity yet.</div>
+            ) : (
+              <div className="activity-feed">
+                {activityFeed.map((item) => {
+                  const isSubmittedClaim = item.type === "claim" && item.raw?.claimStatus === "submitted";
+                  return (
+                    <div key={item.id} className="activity-item">
+                      <div className="activity-dot" style={{ background: item.accent }} />
+                      <div className="activity-body">
+                        <div className="activity-label">{item.label}</div>
+                        <div className="activity-sub">{item.sub}</div>
+                      </div>
+                      <div className="activity-right">
+                        <div className="activity-date">{fmtDate(item.date)}</div>
+                        {isSubmittedClaim ? (
+                          <ClaimOnChainButton
+                            claim={item.raw}
+                            onDone={async () => {
+                              setInfo(`Claim #${item.raw.id} confirmed on-chain.`);
+                              if (address) await loadAll(address, { silent: true });
+                            }}
+                          />
+                        ) : null}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       </div>

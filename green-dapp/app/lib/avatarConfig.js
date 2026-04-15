@@ -14,6 +14,16 @@ export const AVATAR_SLOT_LABELS = {
   accessories2: "Accessory 2",
 };
 
+export const AVATAR_SLOT_ICONS = {
+  wallpaper: "🖼️",
+  hat: "🧢",
+  top: "👕",
+  bottom: "👖",
+  shoes: "👟",
+  accessories: "✨",
+  accessories2: "💎",
+};
+
 export const AVATAR_SLOT_HINTS = {
   wallpaper: "background scenes and avatar backdrops",
   hat: "caps, beanies, head pieces",

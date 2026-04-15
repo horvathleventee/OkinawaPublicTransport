@@ -315,7 +315,7 @@ export default function ChatPage() {
               onChange={(e) => setSearch(e.target.value)}
               placeholder={walletReady ? "Search by name or wallet" : "Connect wallet to search"}
               disabled={!walletReady || inboxLoading}
-              style={{ ...textInput, marginTop: 14 }}
+              className="chat-search-input"
             />
 
             <div style={conversationList}>
@@ -336,7 +336,7 @@ export default function ChatPage() {
                           key={entry.threadKey}
                           type="button"
                           onClick={() => setSelectedThread(entry.threadKey)}
-                          style={active ? activeConversationCard : conversationCard}
+                          className={active ? "conv-card conv-card--active" : "conv-card"}
                         >
                           <AvatarShowcase layout={entry.avatar?.layout} size={72} rounded={18} />
                           <div style={{ minWidth: 0, textAlign: "left" }}>
@@ -344,13 +344,13 @@ export default function ChatPage() {
                               {communityName(entry.customDisplayName, entry.walletAddress)}
                             </div>
                             <div className="mono" style={{ marginTop: 4 }}>{shortAddr(entry.walletAddress)}</div>
-                            <div style={conversationPreview}>
+                            <div className="conv-preview">
                               {entry.lastMessage?.message || "No messages yet. Start the conversation."}
                             </div>
                             <div className="small" style={{ marginTop: 6, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                               {entry.lastMessage?.createdAt ? formatInboxTimestamp(entry.lastMessage.createdAt) : "Friend connection"}
                               <span>{formatLastActive(entry.presence)}</span>
-                              {entry.unreadCount ? <span style={unreadBadge}>{entry.unreadCount} new</span> : null}
+                              {entry.unreadCount ? <span className="unread-badge">{entry.unreadCount} new</span> : null}
                             </div>
                           </div>
                         </button>
@@ -365,7 +365,7 @@ export default function ChatPage() {
                           key={group.threadKey}
                           type="button"
                           onClick={() => setSelectedThread(group.threadKey)}
-                          style={active ? activeConversationCard : conversationCard}
+                          className={active ? "conv-card conv-card--active" : "conv-card"}
                         >
                           <ThreadAvatar entry={group} size={72} rounded={18} />
                           <div style={{ minWidth: 0, textAlign: "left" }}>
@@ -373,7 +373,7 @@ export default function ChatPage() {
                             <div className="small" style={{ marginTop: 4 }}>
                               {group.viewerRole === "owner" ? "Owner" : "Member"} · {group.members?.length || 0} members
                             </div>
-                            <div style={conversationPreview}>
+                            <div className="conv-preview">
                               {group.lastMessage?.message || group.description || "Group conversation"}
                             </div>
                             <div className="small" style={{ marginTop: 6 }}>
@@ -382,7 +382,7 @@ export default function ChatPage() {
                                 : group.updatedAt
                                 ? formatInboxTimestamp(group.updatedAt)
                                 : "Group"}
-                              {group.unreadCount ? <span style={{ ...unreadBadge, marginLeft: 8 }}>{group.unreadCount} new</span> : null}
+                              {group.unreadCount ? <span className="unread-badge" style={{ marginLeft: 8 }}>{group.unreadCount} new</span> : null}
                             </div>
                           </div>
                         </button>
@@ -444,11 +444,14 @@ export default function ChatPage() {
                   {messagesLoading && messages.length === 0 ? (
                     <div className="small">Loading messages...</div>
                   ) : messages.length === 0 ? (
-                    <div style={emptyChatState}>
-                      <div style={{ fontWeight: 900, fontSize: 22 }}>
+                    <div className="chat-empty-state">
+                      <div className="chat-empty-icon">
+                        {selectedEntry.threadType === "group" ? "🫂" : "💬"}
+                      </div>
+                      <div style={{ fontWeight: 900, fontSize: 20 }}>
                         {selectedEntry.threadType === "group" ? "Start your group chat" : "Start your chat"}
                       </div>
-                      <div className="small" style={{ marginTop: 8 }}>
+                      <div className="small" style={{ marginTop: 8, opacity: 0.72 }}>
                         {selectedEntry.threadType === "group"
                           ? `Send the first message to ${selectedEntry.name}.`
                           : `Send the first message to ${communityName(selectedEntry.customDisplayName, selectedEntry.walletAddress)}.`}
@@ -528,9 +531,10 @@ export default function ChatPage() {
                 </div>
               </>
             ) : (
-              <div style={emptyChatState}>
-                <div style={{ fontWeight: 900, fontSize: 24 }}>No conversation selected</div>
-                <div className="small" style={{ marginTop: 8 }}>
+              <div className="chat-empty-state">
+                <div className="chat-empty-icon">💬</div>
+                <div style={{ fontWeight: 900, fontSize: 22 }}>No conversation selected</div>
+                <div className="small" style={{ marginTop: 8, opacity: 0.72 }}>
                   {walletReady ? "Pick a friend or group from the left side to open your chat." : "Connect wallet first to access your messages."}
                 </div>
               </div>

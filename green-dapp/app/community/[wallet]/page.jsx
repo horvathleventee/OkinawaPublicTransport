@@ -110,7 +110,7 @@ export default function CommunityProfilePage({ params }) {
       return (
         <>
           <Link href={`/chat?with=${wallet}`} className="pill" style={friendBtn}>
-            Open chat
+            💬 Open chat
           </Link>
           <button type="button" className="pill" onClick={() => updateSocial(`/api/users/${address}/friends/${wallet}`, "Friend removed.")} disabled={friendLoading} style={friendBtn}>
             {friendLoading ? "Updating..." : "Remove friend"}
@@ -203,7 +203,15 @@ export default function CommunityProfilePage({ params }) {
 
       <div className="topbar">
         <div className="title">
-          <h1 className="h1">Public Profile</h1>
+          <h1 className="h1">
+            {profile ? communityName(profile.customDisplayName, profile.walletAddress) : "Public Profile"}
+          </h1>
+          {profile ? (
+            <p className="subtitle">
+              <span className={profile.presence?.isOnline ? "presence-dot presence-dot--online" : "presence-dot presence-dot--offline"} />
+              {profile.presence?.isOnline ? "Online now" : "Offline"}
+            </p>
+          ) : null}
         </div>
       </div>
 
@@ -214,19 +222,21 @@ export default function CommunityProfilePage({ params }) {
         <div className="card" style={{ gridColumn: "span 5" }}>
           <div className="accent cyan" />
           <div className="card-inner">
-            <div className="section-title">Avatar <span className="hint">public showcase</span></div>
+            <div className="section-title">Avatar <span className="hint">showcase</span></div>
             <div style={{ marginTop: 14, display: "flex", justifyContent: "center" }}>
               <AvatarShowcase layout={avatarLayout} size={340} rounded={28} />
             </div>
             {profile ? (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 10, marginTop: 14 }}>
-                <div style={miniStatCard}>
+                <div className="public-like-card">
+                  <div className="public-like-icon">❤️</div>
+                  <div className="public-like-val">{fmt(profile?.likes?.profileLikes, 0)}</div>
                   <div className="small">Profile likes</div>
-                  <div style={miniStatValue}>{fmt(profile?.likes?.profileLikes, 0)}</div>
                 </div>
-                <div style={miniStatCard}>
+                <div className="public-like-card">
+                  <div className="public-like-icon">✨</div>
+                  <div className="public-like-val">{fmt(profile?.likes?.outfitLikes, 0)}</div>
                   <div className="small">Outfit likes</div>
-                  <div style={miniStatValue}>{fmt(profile?.likes?.outfitLikes, 0)}</div>
                 </div>
               </div>
             ) : null}
@@ -259,68 +269,70 @@ export default function CommunityProfilePage({ params }) {
 
                 <div>
                   <div className="small">Wallet</div>
-                  <div className="mono" style={{ fontSize: 14 }}>{profile.walletAddress}</div>
-                  <div className="small" style={{ marginTop: 6 }}>Short: {shortAddr(profile.walletAddress)}</div>
-                  <div className="small" style={{ marginTop: 6 }}>{formatLastActive(profile.presence)}</div>
+                  <div className="mono" style={{ fontSize: 13, wordBreak: "break-all" }}>{profile.walletAddress}</div>
+                  <div className="small" style={{ marginTop: 6 }}>{shortAddr(profile.walletAddress)}</div>
                 </div>
 
                 {canManageFriend ? (
-                  <div className="small" style={{ opacity: 0.9 }}>
-                    Friendship state:{" "}
-                    <span style={{ fontWeight: 800 }}>
-                      {friendState.kind === "friends"
-                        ? "friends"
-                        : friendState.kind === "incoming"
-                        ? "sent you a request"
-                        : friendState.kind === "outgoing"
-                        ? "request pending"
-                        : "not connected yet"}
-                    </span>
+                  <div>
+                    {friendState.kind === "friends" ? (
+                      <span className="friendship-badge friendship-badge--friends">✓ Friends</span>
+                    ) : friendState.kind === "incoming" ? (
+                      <span className="friendship-badge friendship-badge--incoming">↙ Sent you a request</span>
+                    ) : friendState.kind === "outgoing" ? (
+                      <span className="friendship-badge friendship-badge--outgoing">↗ Request pending</span>
+                    ) : (
+                      <span className="friendship-badge friendship-badge--none">Not connected</span>
+                    )}
                   </div>
                 ) : null}
 
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                   <button
                     type="button"
-                    className="pill"
+                    className={`pill like-btn ${profile?.likes?.viewerLikedProfile ? "like-btn--active" : ""}`}
                     onClick={() => toggleLike("profile")}
                     disabled={!canManageFriend || likeBusy === "profile"}
-                    style={friendBtn}
                   >
-                    {profile?.likes?.viewerLikedProfile ? "Unlike profile" : "Like profile"} ({fmt(profile?.likes?.profileLikes, 0)})
+                    {profile?.likes?.viewerLikedProfile ? "❤️" : "🤍"} {profile?.likes?.viewerLikedProfile ? "Unlike profile" : "Like profile"}
+                    <span className="like-count">{fmt(profile?.likes?.profileLikes, 0)}</span>
                   </button>
                   <button
                     type="button"
-                    className="pill"
+                    className={`pill like-btn ${profile?.likes?.viewerLikedOutfit ? "like-btn--active" : ""}`}
                     onClick={() => toggleLike("outfit")}
                     disabled={!canManageFriend || likeBusy === "outfit"}
-                    style={friendBtn}
                   >
-                    {profile?.likes?.viewerLikedOutfit ? "Unlike outfit" : "Like outfit"} ({fmt(profile?.likes?.outfitLikes, 0)})
+                    {profile?.likes?.viewerLikedOutfit ? "✨" : "👗"} {profile?.likes?.viewerLikedOutfit ? "Unlike outfit" : "Like outfit"}
+                    <span className="like-count">{fmt(profile?.likes?.outfitLikes, 0)}</span>
                   </button>
                 </div>
 
-                <div className="kv">
-                  <div className="kv-item">
-                    <div className="kv-left"><span className="kv-label">Events</span></div>
-                    <div className="kv-value">{fmt(rewards?.eventsCount, 0)}</div>
+                <div className="public-stats-grid">
+                  <div className="public-stat-card">
+                    <div className="public-stat-icon">🚴</div>
+                    <div className="public-stat-val">{fmt(rewards?.eventsCount, 0)}</div>
+                    <div className="public-stat-label">Trips</div>
                   </div>
-                  <div className="kv-item">
-                    <div className="kv-left"><span className="kv-label">Distance</span></div>
-                    <div className="kv-value">{fmt(rewards?.breakdown?.distanceKm, 2)} km</div>
+                  <div className="public-stat-card">
+                    <div className="public-stat-icon">📍</div>
+                    <div className="public-stat-val">{fmt(rewards?.breakdown?.distanceKm, 2)}<span className="public-stat-unit"> km</span></div>
+                    <div className="public-stat-label">Distance</div>
                   </div>
-                  <div className="kv-item">
-                    <div className="kv-left"><span className="kv-label">CO2 saved</span></div>
-                    <div className="kv-value">{fmt(rewards?.breakdown?.co2SavedKg, 3)} kg</div>
+                  <div className="public-stat-card">
+                    <div className="public-stat-icon">🌱</div>
+                    <div className="public-stat-val">{fmt(rewards?.breakdown?.co2SavedKg, 2)}<span className="public-stat-unit"> kg</span></div>
+                    <div className="public-stat-label">CO₂ saved</div>
                   </div>
-                  <div className="kv-item">
-                    <div className="kv-left"><span className="kv-label">Purchases</span></div>
-                    <div className="kv-value">{fmt(profile?.purchasesCount, 0)}</div>
+                  <div className="public-stat-card">
+                    <div className="public-stat-icon">🛍️</div>
+                    <div className="public-stat-val">{fmt(profile?.purchasesCount, 0)}</div>
+                    <div className="public-stat-label">Purchases</div>
                   </div>
                 </div>
 
                 <div>
-                  <div className="small">Friends</div>
+                  <div className="small">Friends {(profile.friends || []).length > 0 ? <span className="profile-section-count">({(profile.friends || []).length})</span> : null}</div>
                   <div style={socialWrap}>
                     {(profile.friends || []).length === 0 ? (
                       <div className="small">No public friends yet.</div>

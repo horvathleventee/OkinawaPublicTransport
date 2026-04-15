@@ -467,6 +467,12 @@ code{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liber
   border-radius: 16px;
   padding: 14px;
   box-shadow: var(--shadow2);
+  transition: transform 150ms ease, box-shadow 150ms ease, border-color 150ms ease;
+}
+.shop-item:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 40px rgba(0,0,0,.35);
+  border-color: rgba(34,211,238,.35);
 }
 .shop-img {
   height: 170px;
@@ -733,3 +739,808 @@ code{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liber
   .theme-text { display: none; }
   .theme-cycle-btn { min-width: auto; }
 }
+
+/* ──────────────────────────────────────────────────────────────
+   PROFILE HERO
+   ────────────────────────────────────────────────────────────── */
+.profile-hero {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 24px;
+  align-items: start;
+  background: color-mix(in srgb, var(--card2) 55%, var(--card) 45%);
+  border: 1px solid var(--ui-soft-border);
+  border-radius: 24px;
+  padding: 24px 28px;
+  margin-bottom: 24px;
+  box-shadow: var(--shadow2);
+}
+
+.profile-hero-avatar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.profile-hero-avatar-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.profile-hero-info {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.profile-hero-address {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.profile-hero-addr-short {
+  font-size: 22px;
+  font-weight: 950;
+  letter-spacing: .01em;
+}
+.profile-hero-addr-full {
+  font-size: 12px;
+  color: var(--muted);
+  word-break: break-all;
+}
+.profile-hero-chain {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  background: var(--ui-soft-bg);
+  border: 1px solid var(--ui-soft-border);
+  border-radius: 999px;
+  padding: 2px 9px;
+}
+
+.profile-hero-stats {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  background: var(--ui-soft-bg);
+  border: 1px solid var(--ui-soft-border);
+  border-radius: 16px;
+  padding: 14px 20px;
+  flex-wrap: wrap;
+}
+.profile-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 20px;
+}
+.profile-stat-value {
+  font-size: 22px;
+  font-weight: 950;
+  letter-spacing: -.01em;
+}
+.profile-stat-label {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 700;
+  margin-top: 2px;
+  white-space: nowrap;
+}
+.profile-stat-divider {
+  width: 1px;
+  height: 36px;
+  background: var(--ui-soft-border);
+  flex-shrink: 0;
+}
+
+.profile-progress-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.profile-progress-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 700;
+}
+.profile-progress-track {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--ui-soft-bg);
+  border: 1px solid var(--ui-soft-border);
+  overflow: hidden;
+}
+.profile-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(52,211,153,.7), rgba(34,211,238,.8));
+  transition: width 600ms ease;
+}
+
+.profile-hero-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.profile-info-msg {
+  border: 1px solid rgba(52,211,153,.25);
+  background: rgba(52,211,153,.08);
+  color: rgba(255,255,255,.92);
+  border-radius: 14px;
+  padding: 12px 14px;
+  font-size: 13px;
+}
+
+.profile-hero-qr {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.profile-qr-label {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+.profile-qr-img {
+  width: 140px;
+  height: 140px;
+  border-radius: 16px;
+  border: 1px solid var(--ui-soft-border);
+  background: rgba(255,255,255,.96);
+  padding: 8px;
+}
+
+.profile-claim-row {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+}
+.profile-claim-preview {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.profile-claim-amount {
+  font-size: 32px;
+  font-weight: 950;
+  letter-spacing: -.02em;
+  color: rgba(52,211,153,.95);
+}
+.profile-claim-form {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* ── Activity feed ───────────────────────────────────────────── */
+.activity-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin-top: 16px;
+}
+.activity-item {
+  display: grid;
+  grid-template-columns: 20px 1fr auto;
+  gap: 14px;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--ui-soft-border);
+  transition: background 120ms ease;
+}
+.activity-item:last-child { border-bottom: none; }
+.activity-item:hover {
+  background: color-mix(in srgb, var(--ui-soft-bg) 30%, transparent);
+  border-radius: 12px;
+  margin: 0 -8px;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+.activity-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  justify-self: center;
+  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 15%, transparent);
+}
+.activity-label {
+  font-weight: 800;
+  font-size: 14px;
+}
+.activity-sub {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 700;
+  margin-top: 2px;
+}
+.activity-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+.activity-date {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* ── Avatar slot tab buttons ─────────────────────────────────── */
+.slot-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-weight: 800;
+  font-size: 13px;
+  color: var(--ui-soft-text);
+  transition: transform 120ms ease, opacity 120ms ease, border-color 120ms ease;
+}
+.slot-tab-btn:hover {
+  transform: translateY(-1px);
+  opacity: 1 !important;
+}
+.slot-tab-label {
+  font-size: 13px;
+}
+
+@media (max-width: 900px) {
+  .profile-hero {
+    grid-template-columns: 1fr;
+  }
+  .profile-hero-qr {
+    flex-direction: row;
+    align-items: center;
+    gap: 16px;
+    justify-content: flex-start;
+  }
+  .profile-hero-stats {
+    justify-content: center;
+  }
+}
+@media (max-width: 520px) {
+  .slot-tab-label { display: none; }
+  .slot-tab-btn { padding: 8px 10px; gap: 0; }
+  .profile-hero { padding: 16px; gap: 16px; }
+  .profile-stat { padding: 0 12px; }
+  .profile-stat-value { font-size: 17px; }
+}
+
+/* ─── Shop stat strip ─────────────────────────────────────────────────────── */
+.shop-stat-strip {
+  background: var(--card-bg, rgba(15,20,40,.72));
+  border: 1px solid rgba(255,255,255,.10);
+  border-radius: 20px;
+  padding: 14px 22px;
+  backdrop-filter: blur(12px);
+}
+.shop-stat-strip-inner {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  flex-wrap: wrap;
+}
+.shop-stat-pill {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 20px;
+}
+.shop-stat-pill:first-child { padding-left: 0; }
+.shop-stat-divider {
+  width: 1px;
+  height: 36px;
+  background: rgba(255,255,255,.10);
+  flex-shrink: 0;
+}
+.shop-stat-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  opacity: .6;
+}
+.shop-stat-val {
+  font-size: 22px;
+  font-weight: 900;
+  line-height: 1;
+}
+.shop-stat-unit {
+  font-size: 13px;
+  font-weight: 700;
+  opacity: .7;
+}
+
+/* ─── Shop owned overlay badge ───────────────────────────────────────────── */
+.shop-owned-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(34,197,94,.9), rgba(16,185,129,.8));
+  border: 2px solid rgba(255,255,255,.22);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 900;
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(34,197,94,.30);
+}
+
+/* ─── Shop buy button ────────────────────────────────────────────────────── */
+.shop-buy-btn {
+  margin-top: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(34,211,238,.30);
+  background: rgba(34,211,238,.10);
+  color: rgba(255,255,255,.92);
+  cursor: pointer;
+  font-weight: 900;
+  font-size: 14px;
+  transition: background 150ms ease, transform 100ms ease;
+}
+.shop-buy-btn:hover:not(:disabled) {
+  background: rgba(34,211,238,.20);
+  transform: translateY(-1px);
+}
+.shop-buy-btn--owned {
+  border-color: rgba(34,197,94,.28);
+  background: rgba(34,197,94,.08);
+  color: rgba(134,239,172,.80);
+  cursor: not-allowed;
+}
+.shop-buy-btn:disabled {
+  opacity: .7;
+}
+:root[data-theme="light"] .shop-buy-btn {
+  color: rgba(66,49,31,.92);
+}
+:root[data-theme="light"] .shop-buy-btn--owned {
+  color: rgba(22,101,52,.85);
+}
+
+/* ─── Community section tabs ─────────────────────────────────────────────── */
+.community-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  position: relative;
+}
+.community-tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 99px;
+  background: rgba(239,68,68,.85);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+/* ─── Leaderboard rank badge ─────────────────────────────────────────────── */
+.leaderboard-card {
+  transition: transform 150ms ease, box-shadow 150ms ease;
+}
+.leaderboard-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 18px 40px rgba(0,0,0,.22);
+}
+.rank-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  padding: 3px 9px;
+  border-radius: 99px;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: .02em;
+  border: 1.5px solid rgba(255,255,255,.18);
+}
+.rank-badge--gold {
+  background: linear-gradient(135deg, rgba(251,191,36,.95), rgba(245,158,11,.90));
+  color: #1a1000;
+  border-color: rgba(251,191,36,.5);
+}
+.rank-badge--silver {
+  background: linear-gradient(135deg, rgba(226,232,240,.85), rgba(148,163,184,.80));
+  color: #1a1a1a;
+  border-color: rgba(226,232,240,.4);
+}
+.rank-badge--bronze {
+  background: linear-gradient(135deg, rgba(180,120,60,.90), rgba(146,90,40,.85));
+  color: #fff8f0;
+  border-color: rgba(180,120,60,.4);
+}
+.rank-badge--default {
+  background: rgba(255,255,255,.10);
+  color: rgba(255,255,255,.85);
+}
+
+/* ─── Chat sidebar conversation cards ───────────────────────────────────── */
+.conv-card {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  border-radius: 20px;
+  padding: 12px;
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(255,255,255,.03);
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: background 140ms ease, border-color 140ms ease, transform 100ms ease;
+}
+.conv-card:hover {
+  background: rgba(255,255,255,.07);
+  border-color: rgba(255,255,255,.14);
+  transform: translateX(2px);
+}
+.conv-card--active {
+  border-color: rgba(34,211,238,.42);
+  background: linear-gradient(180deg, rgba(34,211,238,.16), rgba(255,255,255,.05));
+  box-shadow: 0 10px 24px rgba(34,211,238,.10);
+}
+.conv-card--active:hover {
+  background: linear-gradient(180deg, rgba(34,211,238,.20), rgba(255,255,255,.07));
+  transform: none;
+}
+.conv-preview {
+  margin-top: 6px;
+  font-size: 13px;
+  opacity: .85;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ─── Chat unread badge ──────────────────────────────────────────────────── */
+.unread-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border-radius: 99px;
+  background: rgba(34,211,238,.22);
+  border: 1px solid rgba(34,211,238,.30);
+  color: rgba(34,211,238,.98);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+/* ─── Chat search input ──────────────────────────────────────────────────── */
+.chat-search-input {
+  width: 100%;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.05);
+  color: rgba(255,255,255,.96);
+  padding: 10px 14px;
+  outline: none;
+  font-size: 14px;
+  margin-top: 14px;
+  transition: border-color 140ms ease;
+}
+.chat-search-input:focus {
+  border-color: rgba(34,211,238,.40);
+}
+
+/* ─── Chat empty state ───────────────────────────────────────────────────── */
+.chat-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  text-align: center;
+  gap: 6px;
+  padding: 32px 20px;
+  opacity: .92;
+}
+.chat-empty-icon {
+  font-size: 44px;
+  margin-bottom: 8px;
+  line-height: 1;
+  filter: drop-shadow(0 4px 10px rgba(34,211,238,.22));
+}
+
+/* ─── Trade stat strip ───────────────────────────────────────────────────── */
+.trade-stat-strip {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  flex-wrap: wrap;
+  background: var(--card-bg, rgba(15,20,40,.72));
+  border: 1px solid rgba(255,255,255,.10);
+  border-radius: 20px;
+  padding: 14px 22px;
+  backdrop-filter: blur(12px);
+}
+.trade-stat-pill {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 20px;
+}
+.trade-stat-pill:first-child { padding-left: 0; }
+.trade-stat-offers {
+  font-size: 18px;
+}
+
+/* ─── Trade cards ────────────────────────────────────────────────────────── */
+.trade-card {
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.03);
+  padding: 16px;
+  transition: border-color 150ms ease;
+}
+.trade-card:hover {
+  border-color: rgba(255,255,255,.16);
+}
+.trade-offer-card {
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(255,255,255,.025);
+  padding: 12px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* ─── Trade item picker ──────────────────────────────────────────────────── */
+.trade-picker-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.035);
+  padding: 12px;
+  color: rgba(255,255,255,.96);
+  cursor: pointer;
+  transition: border-color 140ms ease, background 140ms ease, transform 100ms ease;
+  text-align: left;
+}
+.trade-picker-card:hover {
+  background: rgba(255,255,255,.07);
+  border-color: rgba(255,255,255,.18);
+  transform: translateY(-1px);
+}
+.trade-picker-card--selected {
+  border-color: rgba(34,211,238,.88);
+  background: rgba(34,211,238,.12);
+  box-shadow: 0 6px 20px rgba(34,211,238,.12);
+}
+.trade-picker-card--selected:hover {
+  background: rgba(34,211,238,.16);
+}
+
+/* ─── Trade swap row ─────────────────────────────────────────────────────── */
+.trade-swap-row {
+  display: flex;
+  align-items: center;
+  gap: 10;
+}
+.trade-swap-arrow {
+  font-size: 18px;
+  opacity: .7;
+  letter-spacing: .05em;
+  margin-left: 8px;
+}
+.trade-arrow {
+  opacity: .65;
+  font-style: normal;
+  margin: 0 4px;
+}
+.trade-offer-from {
+  opacity: .7;
+  font-weight: 600;
+  font-size: 13px;
+  margin-left: 4px;
+}
+
+/* ─── Trade approval banner ──────────────────────────────────────────────── */
+.trade-approval-banner {
+  margin-top: 12px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.03);
+}
+.trade-approval-banner--ok {
+  border-color: rgba(34,197,94,.28);
+  background: rgba(34,197,94,.10);
+}
+
+/* ─── Trade status badge ─────────────────────────────────────────────────── */
+.trade-status-badge {
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: .02em;
+}
+
+/* ─── Presence dot ───────────────────────────────────────────────────────── */
+.presence-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 5px;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+.presence-dot--online {
+  background: rgba(34,197,94,.95);
+  box-shadow: 0 0 6px rgba(34,197,94,.6);
+}
+.presence-dot--offline {
+  background: rgba(148,163,184,.60);
+}
+
+/* ─── Friendship state badge ─────────────────────────────────────────────── */
+.friendship-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 12px;
+  border-radius: 99px;
+  font-size: 12px;
+  font-weight: 800;
+  border: 1px solid rgba(255,255,255,.12);
+}
+.friendship-badge--friends {
+  background: rgba(34,197,94,.14);
+  border-color: rgba(34,197,94,.30);
+  color: rgba(134,239,172,.95);
+}
+.friendship-badge--incoming {
+  background: rgba(251,191,36,.12);
+  border-color: rgba(251,191,36,.28);
+  color: rgba(253,230,138,.95);
+}
+.friendship-badge--outgoing {
+  background: rgba(59,130,246,.14);
+  border-color: rgba(59,130,246,.28);
+  color: rgba(147,197,253,.95);
+}
+.friendship-badge--none {
+  background: rgba(255,255,255,.06);
+  color: rgba(255,255,255,.55);
+}
+
+/* ─── Like button ────────────────────────────────────────────────────────── */
+.like-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: transform 100ms ease;
+}
+.like-btn:hover:not(:disabled) {
+  transform: scale(1.04);
+}
+.like-btn--active {
+  border-color: rgba(244,63,94,.45) !important;
+  background: rgba(244,63,94,.12) !important;
+  color: rgba(253,164,175,.95) !important;
+}
+.like-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 99px;
+  background: rgba(255,255,255,.10);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+/* ─── Public profile stat grid ───────────────────────────────────────────── */
+.public-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+.public-stat-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 14px 10px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(255,255,255,.03);
+  gap: 3px;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+.public-stat-card:hover {
+  background: rgba(255,255,255,.06);
+  border-color: rgba(255,255,255,.14);
+}
+.public-stat-icon {
+  font-size: 20px;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+.public-stat-val {
+  font-size: 22px;
+  font-weight: 900;
+  line-height: 1;
+}
+.public-stat-unit {
+  font-size: 13px;
+  font-weight: 700;
+  opacity: .7;
+}
+.public-stat-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  opacity: .6;
+  margin-top: 2px;
+}
+
+/* ─── Avatar like cards (public profile left panel) ─────────────────────── */
+.public-like-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(255,255,255,.03);
+  text-align: center;
+  gap: 2px;
+}
+.public-like-icon {
+  font-size: 20px;
+  margin-bottom: 4px;
+}
+.public-like-val {
+  font-size: 22px;
+  font-weight: 900;
+}
+
+/* ─── Profile section count ──────────────────────────────────────────────── */
+.profile-section-count {
+  opacity: .65;
+  font-size: 12px;
+  font-weight: 700;
+}
+

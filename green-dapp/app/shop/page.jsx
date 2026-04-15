@@ -8,10 +8,11 @@ import { addOwned, isOwned, loadInventory, saveInventory } from "../lib/inventor
 import {
   AVATAR_SHOP_SLOTS,
   AVATAR_SLOT_HINTS,
+  AVATAR_SLOT_ICONS,
   AVATAR_SLOT_LABELS,
   createEmptySlotMap,
 } from "../lib/avatarConfig";
-import { getItemRarity, getItemTheme } from "../lib/api";
+import { getItemRarity, getItemTheme, shortAddr } from "../lib/api";
 import { getCosmeticToken } from "../lib/cosmetics";
 import Nav from "../components/Nav";
 import { greenCommuteTokenAbi } from "../../lib/greenCommuteTokenAbi";
@@ -617,49 +618,36 @@ export default function ShopPage() {
 
       {activeTab === "shop" ? (
       <div className="grid">
-        <div className="card" style={{ gridColumn: "span 12" }}>
-          <div className="accent green" />
-          <div
-            className="card-inner"
-            style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}
-          >
-            <div>
-              <div className="card-title">Wallet</div>
-              <div className="small">{walletLabel}</div>
-              <div className="small" style={{ marginTop: 6 }}>
-                Active avatar: <span className="mono">{activeCharacter}</span>
-              </div>
+        <div className="shop-stat-strip" style={{ gridColumn: "span 12" }}>
+          <div className="shop-stat-strip-inner">
+            <div className="shop-stat-pill">
+              <span className="shop-stat-label">Spendable</span>
+              <span className="shop-stat-val">{mounted && isConnected ? (available ?? "...") : "–"} <span className="shop-stat-unit">GCT</span></span>
             </div>
-
-            <div style={{ display: "flex", gap: 14 }}>
-              <div>
-                <div className="card-title">On-chain spendable</div>
-                <div className="metric-value" style={{ fontSize: 26 }}>
-                  {mounted && isConnected ? available ?? "..." : "-"} <span className="metric-unit">GCT</span>
-                </div>
-                {mounted && isConnected && available === 0 && rewards?.claimedTokens > 0 && (() => {
-                  const status = rewards?.onChainStatus;
-                  let msg = null;
-                  if (status === "rpc_unreachable") msg = "Az RPC nem elérhető – a lánc fut?";
-                  else if (status === "contract_not_deployed") msg = "A GCT contract nincs deployolva ezen a láncon. Indítsd újra a Hardhat-et, deploy-olj, és igényeld újra a tokened.";
-                  else if (status === "ok" || status === "empty_response" || status === "call_failed") msg = "A láncon 0 GCT van, de a DB szerint már claimeltél. Valószínűleg újraindult a Hardhat-lánc – töröld a DB adatot (/api/dev/chain-data) és igényeld újra.";
-                  if (!msg) return null;
-                  return (
-                    <div style={{ fontSize: 11, color: "rgba(251,191,36,.9)", marginTop: 4, maxWidth: 220, lineHeight: 1.4 }}>
-                      ⚠ {msg}
-                    </div>
-                  );
-                })()}
-              </div>
-
-              <div>
-                <div className="card-title">Owned</div>
-                <div className="metric-value" style={{ fontSize: 26 }}>
-                  {inv ? inv.owned.length : "..."} <span className="metric-unit">items</span>
-                </div>
-              </div>
+            <div className="shop-stat-divider" />
+            <div className="shop-stat-pill">
+              <span className="shop-stat-label">Owned</span>
+              <span className="shop-stat-val">{inv ? inv.owned.length : "..."} <span className="shop-stat-unit">items</span></span>
+            </div>
+            <div className="shop-stat-divider" />
+            <div className="shop-stat-pill">
+              <span className="shop-stat-label">Avatar</span>
+              <span className="shop-stat-val mono" style={{ fontSize: 13 }}>{activeCharacter}</span>
             </div>
           </div>
+          {mounted && isConnected && available === 0 && rewards?.claimedTokens > 0 && (() => {
+            const status = rewards?.onChainStatus;
+            let msg = null;
+            if (status === "rpc_unreachable") msg = "Az RPC nem elérhető – a lánc fut?";
+            else if (status === "contract_not_deployed") msg = "A GCT contract nincs deployolva ezen a láncon. Indítsd újra a Hardhat-et, deploy-olj, és igényeld újra a tokened.";
+            else if (status === "ok" || status === "empty_response" || status === "call_failed") msg = "A láncon 0 GCT van, de a DB szerint már claimeltél. Valószínűleg újraindult a Hardhat-lánc – töröld a DB adatot (/api/dev/chain-data) és igényeld újra.";
+            if (!msg) return null;
+            return (
+              <div style={{ fontSize: 11, color: "rgba(251,191,36,.9)", marginTop: 6, lineHeight: 1.4, paddingBottom: 2 }}>
+                ⚠ {msg}
+              </div>
+            );
+          })()}
         </div>
 
         {AVATAR_SHOP_SLOTS.map((slot) => (
@@ -667,6 +655,7 @@ export default function ShopPage() {
             <div className="accent cyan" />
             <div className="card-inner">
               <div className="section-title" style={{ textTransform: "capitalize" }}>
+                <span style={{ marginRight: 6 }}>{AVATAR_SLOT_ICONS[slot] || "🎮"}</span>
                 {AVATAR_SLOT_LABELS[slot] || slot} <span className="hint">({AVATAR_SLOT_HINTS[slot] || "cosmetics"})</span>
               </div>
 
@@ -678,7 +667,7 @@ export default function ShopPage() {
 
                   return (
                     <div key={it.id} className="shop-item">
-                      <div className="shop-img">
+                      <div className="shop-img" style={{ position: "relative" }}>
                         <img
                           src={it.image}
                           alt={it.name}
@@ -686,17 +675,17 @@ export default function ShopPage() {
                             e.currentTarget.style.display = "none";
                           }}
                         />
+                        {owned ? (
+                          <div className="shop-owned-badge">✓</div>
+                        ) : null}
                       </div>
 
                       <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
                         <div>
                           <div style={{ fontWeight: 900 }}>{it.name}</div>
-                          <div className="small">
-                            slot: <span className="mono">{it.slot}</span>
-                          </div>
                           {cosmeticToken?.tokenId ? (
                             <div className="small">
-                              NFT token: <span className="mono">#{cosmeticToken.tokenId}</span>
+                              NFT: <span className="mono">#{cosmeticToken.tokenId}</span>
                             </div>
                           ) : null}
                           <div className="small">
@@ -716,24 +705,10 @@ export default function ShopPage() {
                       <button
                         onClick={() => buy(it)}
                         disabled={!inv || owned}
-                        style={{
-                          marginTop: 12,
-                          width: "100%",
-                          padding: "10px 12px",
-                          borderRadius: 12,
-                          border: "1px solid rgba(255,255,255,.14)",
-                          background: owned ? "rgba(255,255,255,.04)" : "rgba(255,255,255,.08)",
-                          color: "rgba(255,255,255,.90)",
-                          cursor: owned ? "not-allowed" : "pointer",
-                          fontWeight: 900,
-                        }}
+                        className={owned ? "shop-buy-btn shop-buy-btn--owned" : "shop-buy-btn"}
                       >
-                        {owned ? "Already owned" : "Buy"}
+                        {owned ? "✓ Already owned" : "Buy"}
                       </button>
-
-                      <div className="small" style={{ marginTop: 8, opacity: 0.8 }}>
-                        Stored in <span className="mono">shop_purchases</span> and minted as ERC-1155 when the cosmetics contract is configured.
-                      </div>
                     </div>
                   );
                 })}
@@ -750,32 +725,39 @@ export default function ShopPage() {
       </div>
       ) : (
         <div className="grid">
+          <div className="trade-stat-strip" style={{ gridColumn: "span 12" }}>
+            <div className="trade-stat-pill">
+              <span className="shop-stat-label">My listings</span>
+              <span className="shop-stat-val">{activeMyListings.length} <span className="shop-stat-unit">open</span></span>
+            </div>
+            <div className="shop-stat-divider" />
+            <div className="trade-stat-pill">
+              <span className="shop-stat-label">Market</span>
+              <span className="shop-stat-val">{tradeHub.openListings.length} <span className="shop-stat-unit">listings</span></span>
+            </div>
+            <div className="shop-stat-divider" />
+            <div className="trade-stat-pill">
+              <span className="shop-stat-label">Pending offers</span>
+              <span className="shop-stat-val trade-stat-offers">{tradeHub.incomingOffers?.length || 0} <span className="shop-stat-unit">in</span> · {activeOutgoingOffers.length} <span className="shop-stat-unit">out</span></span>
+            </div>
+          </div>
+
           <div className="card" style={{ gridColumn: "span 12" }}>
             <div className="accent cyan" />
             <div className="card-inner">
-              <div className="section-title">Trade Hub <span className="hint">(NFT-for-NFT offers)</span></div>
+              <div className="section-title">🔄 Trade Hub <span className="hint">NFT-for-NFT swaps</span></div>
               <div className="small" style={{ marginTop: 8 }}>
-                Put your NFT items up for trade, then other users can send you swap offers. When both sides enabled the trade operator, accepting the offer swaps the two ERC-1155 items.
+                Put your NFT items up for trade, then other users can send swap offers. When both sides have enabled the trade operator, accepting an offer swaps the two ERC-1155 items on-chain.
               </div>
               {isConnected && tradeHub.tradeApprovalRequired ? (
-                <div
-                  style={{
-                    marginTop: 12,
-                    display: "flex",
-                    justifyContent: "space-between",
-                    gap: 12,
-                    flexWrap: "wrap",
-                    alignItems: "center",
-                    padding: 12,
-                    borderRadius: 14,
-                    border: "1px solid rgba(255,255,255,.10)",
-                    background: tradeHub.viewerTradeApproved ? "rgba(34,197,94,.10)" : "rgba(255,255,255,.03)",
-                  }}
-                >
-                  <div className="small">
-                    {tradeHub.viewerTradeApproved
-                      ? "Trade approval is enabled for this wallet."
-                      : "Enable the trade operator once so accepted offers can actually swap your NFT items."}
+                <div className={`trade-approval-banner ${tradeHub.viewerTradeApproved ? "trade-approval-banner--ok" : ""}`}>
+                  <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                    <span style={{ fontSize: 18 }}>{tradeHub.viewerTradeApproved ? "✅" : "⚠️"}</span>
+                    <div className="small">
+                      {tradeHub.viewerTradeApproved
+                        ? "Trade approval is enabled for this wallet."
+                        : "Enable the trade operator once so accepted offers can actually swap your NFT items."}
+                    </div>
                   </div>
                   <button
                     type="button"
@@ -797,7 +779,7 @@ export default function ShopPage() {
           <div className="card" style={{ gridColumn: "span 12" }}>
             <div className="accent green" />
             <div className="card-inner">
-              <div className="section-title">Create Trade Listing</div>
+              <div className="section-title">✍️ Create Trade Listing</div>
               {!isConnected ? (
                 <div className="small" style={{ marginTop: 10 }}>Connect wallet to open a trade listing.</div>
               ) : ownedOnChainItems.length === 0 ? (
@@ -806,7 +788,7 @@ export default function ShopPage() {
                 </div>
               ) : (
                 <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
-                  <div className="small">Choose your NFT item</div>
+                  <div className="small">Choose your NFT item to list</div>
                   <div style={tradePickerGrid}>
                     {ownedOnChainItems.map((item) => {
                       const selected = listingItemId === item.id;
@@ -815,11 +797,7 @@ export default function ShopPage() {
                           key={item.id}
                           type="button"
                           onClick={() => setListingItemId(item.id)}
-                          style={{
-                            ...tradeSelectableCard,
-                            border: selected ? "1px solid rgba(34,211,238,.9)" : tradeSelectableCard.border,
-                            background: selected ? "rgba(34,211,238,.12)" : tradeSelectableCard.background,
-                          }}
+                          className={selected ? "trade-picker-card trade-picker-card--selected" : "trade-picker-card"}
                         >
                           <div style={tradeThumbWrap}>
                             <img
@@ -865,13 +843,13 @@ export default function ShopPage() {
           <div className="card" style={{ gridColumn: "span 12" }}>
             <div className="accent amber" />
             <div className="card-inner">
-              <div className="section-title">Open Trade Listings</div>
+              <div className="section-title">📋 Open Trade Listings</div>
               <div style={{ display: "grid", gap: 12, marginTop: 12 }}>
                 {tradeHub.openListings.length === 0 ? (
                   <div className="small">No trade listings are open yet.</div>
                 ) : (
                   tradeHub.openListings.map((listing) => (
-                    <div key={listing.id} style={tradeCard}>
+                    <div key={listing.id} className="trade-card">
                       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
                         <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
                           {listing.item?.image ? (
@@ -888,20 +866,23 @@ export default function ShopPage() {
                           ) : null}
                           <div>
                             <div style={{ fontWeight: 900 }}>
-                              {listing.item?.name || listing.itemId} <span className="small">#{getCosmeticToken(listing.itemId)?.tokenId || "-"}</span>
+                              {listing.item?.name || listing.itemId} <span className="small mono">#{getCosmeticToken(listing.itemId)?.tokenId || "-"}</span>
                             </div>
                             <div className="small">
-                              Owner: <span className="mono">{listing.owner?.customDisplayName || listing.ownerWallet}</span>
+                              By <span className="mono">{listing.owner?.customDisplayName || shortAddr(listing.ownerWallet)}</span>
                             </div>
-                            {listing.note ? <div className="small" style={{ marginTop: 6 }}>{listing.note}</div> : null}
+                            {listing.note ? <div className="small" style={{ marginTop: 6, fontStyle: "italic", opacity: 0.8 }}>{listing.note}</div> : null}
                           </div>
                         </div>
                         <div className="badge">{listing.item?.slot || "item"}</div>
                       </div>
 
                       {isConnected ? (
-                        <div style={{ display: "grid", gap: 8, marginTop: 10 }}>
-                          <div className="small">Offer one of your NFT items</div>
+                        <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
+                          <div className="trade-swap-row">
+                            <div className="small">Offer one of your NFT items</div>
+                            <div className="trade-swap-arrow">⇄</div>
+                          </div>
                           <div style={tradePickerGrid}>
                             {ownedOnChainItems
                               .filter((item) => item.id !== listing.itemId)
@@ -914,11 +895,7 @@ export default function ShopPage() {
                                     onClick={() =>
                                       setOfferSelections((prev) => ({ ...prev, [listing.id]: item.id }))
                                     }
-                                    style={{
-                                      ...tradeSelectableCard,
-                                      border: selected ? "1px solid rgba(34,211,238,.9)" : tradeSelectableCard.border,
-                                      background: selected ? "rgba(34,211,238,.12)" : tradeSelectableCard.background,
-                                    }}
+                                    className={selected ? "trade-picker-card trade-picker-card--selected" : "trade-picker-card"}
                                   >
                                     <div style={tradeThumbWrap}>
                                       <img
@@ -968,10 +945,10 @@ export default function ShopPage() {
           <div className="card" style={{ gridColumn: "span 12" }}>
             <div className="accent purple" />
             <div className="card-inner">
-              <div className="section-title">My Listings & Offers</div>
+              <div className="section-title">📬 My Listings &amp; Offers</div>
               <div style={{ display: "grid", gap: 12, marginTop: 12 }}>
                 {activeMyListings.map((listing) => (
-                  <div key={listing.id} style={tradeCard}>
+                  <div key={listing.id} className="trade-card">
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
                       <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
                         {listing.item?.image ? (
@@ -991,9 +968,9 @@ export default function ShopPage() {
                           <div className="small">{listing.note || "No listing note."}</div>
                         </div>
                       </div>
-                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                        <div className="badge" style={statusBadge}>
-                          {formatTradeStatus(listing.status)}
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                        <div className="badge trade-status-badge" style={{ ...statusBadge, ...getTradeStatusVisual(listing.status).style }}>
+                          {getTradeStatusVisual(listing.status).icon} {formatTradeStatus(listing.status)}
                         </div>
                         {listing.status === "open" ? (
                           <button
@@ -1012,7 +989,7 @@ export default function ShopPage() {
                         <div className="small">No offers yet.</div>
                       ) : (
                         listing.offers.map((offer) => (
-                          <div key={offer.id} style={tradeOfferCard}>
+                          <div key={offer.id} className="trade-offer-card">
                             <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
                               {offer.offeredItem?.image ? (
                                 <div style={tradeThumbWrap}>
@@ -1028,14 +1005,15 @@ export default function ShopPage() {
                               ) : null}
                               <div>
                                 <div style={{ fontWeight: 800 }}>
-                                  {offer.offeredItem?.name || offer.offeredItemId} from {offer.offerer?.customDisplayName || offer.offererWallet}
+                                  {offer.offeredItem?.name || offer.offeredItemId}
+                                  <span className="trade-offer-from"> from {offer.offerer?.customDisplayName || shortAddr(offer.offererWallet)}</span>
                                 </div>
                                 <div className="small">{offer.note || "No note."}</div>
                               </div>
                             </div>
-                            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                              <div className="badge" style={statusBadge}>
-                                {formatTradeStatus(offer.status)}
+                            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                              <div className="badge trade-status-badge" style={{ ...statusBadge, ...getTradeStatusVisual(offer.status).style }}>
+                                {getTradeStatusVisual(offer.status).icon} {formatTradeStatus(offer.status)}
                               </div>
                               {offer.status === "pending" ? (
                                 <>
@@ -1069,9 +1047,9 @@ export default function ShopPage() {
 
                 {activeOutgoingOffers.length > 0 ? (
                   <div style={{ display: "grid", gap: 10 }}>
-                    <div className="section-title" style={{ fontSize: 18 }}>Outgoing Offers</div>
+                    <div className="section-title" style={{ fontSize: 18 }}>↗ Outgoing Offers</div>
                     {activeOutgoingOffers.map((offer) => (
-                      <div key={offer.id} style={tradeOfferCard}>
+                      <div key={offer.id} className="trade-offer-card">
                         <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
                           {offer.offeredItem?.image ? (
                             <div style={tradeThumbWrap}>
@@ -1087,13 +1065,15 @@ export default function ShopPage() {
                           ) : null}
                           <div>
                             <div style={{ fontWeight: 800 }}>
-                              {offer.offeredItem?.name || offer.offeredItemId} {"->"} {offer.listing?.item?.name || offer.listingId}
+                              {offer.offeredItem?.name || offer.offeredItemId}
+                              <span className="trade-arrow"> → </span>
+                              {offer.listing?.item?.name || offer.listingId}
                             </div>
                             <div className="small">{offer.note || "No note."}</div>
                           </div>
                         </div>
-                        <div className="badge" style={statusBadge}>
-                          {formatTradeStatus(offer.status)}
+                        <div className="badge trade-status-badge" style={{ ...statusBadge, ...getTradeStatusVisual(offer.status).style }}>
+                          {getTradeStatusVisual(offer.status).icon} {formatTradeStatus(offer.status)}
                         </div>
                       </div>
                     ))}
@@ -1106,16 +1086,16 @@ export default function ShopPage() {
           <div className="card" style={{ gridColumn: "span 12" }}>
             <div className="accent cyan" />
             <div className="card-inner">
-              <div className="section-title">Trade History</div>
+              <div className="section-title">🕐 Trade History</div>
               <div className="small" style={{ marginTop: 8 }}>
-                Completed, rejected and cancelled trade events live here with their latest timestamps.
+                Completed, rejected and cancelled trade events.
               </div>
               <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
                 {tradeHistory.length === 0 ? (
                   <div className="small">No finished trade activity yet.</div>
                 ) : (
                   tradeHistory.map((entry) => (
-                    <div key={entry.id} style={tradeOfferCard}>
+                    <div key={entry.id} className="trade-offer-card">
                       <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
                         {entry.image ? (
                           <div style={tradeThumbWrap}>
@@ -1140,7 +1120,7 @@ export default function ShopPage() {
                           </div>
                         </div>
                       <div
-                        className="badge"
+                        className="badge trade-status-badge"
                         style={{
                           ...statusBadge,
                           ...getTradeStatusVisual(entry.status).style,

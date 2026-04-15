@@ -544,9 +544,17 @@ export default function CommunityPage() {
               <SummaryMini title="Invites" value={summary.invites} hint="group invites" />
             </div>
             <div style={sectionTabs}>
-              <button type="button" className="pill" onClick={() => setActiveSection("social")} style={activeSection === "social" ? activeTabBtn : tabBtn}>Social</button>
-              <button type="button" className="pill" onClick={() => setActiveSection("groups")} style={activeSection === "groups" ? activeTabBtn : tabBtn}>Groups</button>
-              <button type="button" className="pill" onClick={() => setActiveSection("leaderboard")} style={activeSection === "leaderboard" ? activeTabBtn : tabBtn}>Leaderboard</button>
+              <button type="button" className="pill community-tab-btn" onClick={() => setActiveSection("social")} style={activeSection === "social" ? activeTabBtn : tabBtn}>
+                <span>🌐</span> Social
+                {social.incomingRequests.length > 0 ? <span className="community-tab-badge">{social.incomingRequests.length}</span> : null}
+              </button>
+              <button type="button" className="pill community-tab-btn" onClick={() => setActiveSection("groups")} style={activeSection === "groups" ? activeTabBtn : tabBtn}>
+                <span>👥</span> Groups
+                {social.pendingGroupInvites.length > 0 ? <span className="community-tab-badge">{social.pendingGroupInvites.length}</span> : null}
+              </button>
+              <button type="button" className="pill community-tab-btn" onClick={() => setActiveSection("leaderboard")} style={activeSection === "leaderboard" ? activeTabBtn : tabBtn}>
+                <span>🏆</span> Leaderboard
+              </button>
             </div>
           </div>
         </div>
@@ -983,11 +991,15 @@ export default function CommunityPage() {
                         const publicName = communityName(entry.customDisplayName, entry.walletAddress);
                         return (
                           <Link key={`${entry.walletAddress}-${index}`} href={`/community/${entry.walletAddress}`} style={{ textDecoration: "none", color: "inherit", display: "block" }}>
-                            <div className="shop-item" style={{ height: "100%" }}>
-                              <AvatarShowcase layout={entry.avatar?.layout} size={220} rounded={20} />
+                            <div className="shop-item leaderboard-card" style={{ height: "100%" }}>
+                              <div style={{ position: "relative" }}>
+                                <AvatarShowcase layout={entry.avatar?.layout} size={220} rounded={20} />
+                                <div className={`rank-badge rank-badge--${index < 3 ? ["gold","silver","bronze"][index] : "default"}`}>
+                                  #{index + 1}
+                                </div>
+                              </div>
                               <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginTop: 14 }}>
                                 <div>
-                                  <div style={{ fontWeight: 900 }}>#{index + 1}</div>
                                   <div style={{ fontWeight: 800, marginTop: 4, lineHeight: 1.15 }}>{publicName}</div>
                                   <div className="mono">{shortAddr(entry.walletAddress)}</div>
                                 </div>
