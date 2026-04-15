@@ -951,72 +951,6 @@ export default function AvatarPage() {
         </div>
         ) : null}
 
-        <div className="card" style={{ gridColumn: "span 12" }}>
-          <div className="accent amber" />
-          <div className="card-inner">
-            <div
-              className="section-title"
-              style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}
-            >
-              <span>Outfits & Share</span>
-              <div className="small">Save full looks, then share your avatar profile card.</div>
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "minmax(280px, 1.2fr) minmax(260px, .8fr)", gap: 16, marginTop: 14 }}>
-              <div style={miniPanel}>
-                <div style={{ fontWeight: 900 }}>Saved outfits</div>
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 10 }}>
-                  <input
-                    value={presetName}
-                    onChange={(e) => setPresetName(e.target.value)}
-                    placeholder={walletReady ? "Preset name" : "Connect wallet to save presets"}
-                    disabled={!walletReady || presetBusy}
-                    style={presetInput}
-                  />
-                  <button type="button" className="pill" onClick={saveCurrentPreset} disabled={!walletReady || presetBusy || !presetName.trim()}>
-                    {presetBusy ? "Saving..." : "Save outfit"}
-                  </button>
-                </div>
-                <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
-                  {outfitPresets.length === 0 ? (
-                    <div className="small">No saved outfits yet.</div>
-                  ) : (
-                    outfitPresets.map((preset) => (
-                      <div key={preset.id} style={presetRow}>
-                        <div>
-                          <div style={{ fontWeight: 800 }}>{preset.name}</div>
-                          <div className="small">{preset.updatedAt ? new Date(preset.updatedAt).toLocaleString() : "Saved outfit"}</div>
-                        </div>
-                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                          <button type="button" className="pill" onClick={() => applyPreset(preset)}>Apply</button>
-                          <button type="button" className="pill" onClick={() => deletePreset(preset.id)} disabled={presetBusy}>Delete</button>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-
-              <div style={miniPanel}>
-                <div style={{ fontWeight: 900 }}>Avatar share card</div>
-                <div className="small" style={{ marginTop: 6 }}>Use your public profile as a shareable card for friends and community.</div>
-                <div style={{ display: "flex", justifyContent: "center", marginTop: 12 }}>
-                  <AvatarShowcase layout={normalizeLayoutForApi(inv || {})} size={220} rounded={22} />
-                </div>
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
-                  <button type="button" className="pill" onClick={copyShareCard}>Copy profile link</button>
-                  {walletReady ? (
-                    <a href={`/community/${address.toLowerCase()}`} className="pill" style={{ display: "inline-flex" }}>
-                      Open public card
-                    </a>
-                  ) : null}
-                </div>
-                {shareMessage ? <div className="small" style={{ marginTop: 8 }}>{shareMessage}</div> : null}
-              </div>
-            </div>
-          </div>
-        </div>
-
           <div className="card" style={{ gridColumn: "span 12" }}>
             <div className="accent green" />
             <div className="card-inner">
@@ -1175,6 +1109,72 @@ export default function AvatarPage() {
               ) : null}
             </div>
           </div>
+
+        <div className="card" style={{ gridColumn: "span 12" }}>
+          <div className="accent amber" />
+          <div className="card-inner">
+            <div
+              className="section-title"
+              style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}
+            >
+              <span>Outfits & Share</span>
+              <div className="small">Save full looks, then share your avatar profile card.</div>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "minmax(280px, 1.2fr) minmax(260px, .8fr)", gap: 16, marginTop: 14 }}>
+              <div style={miniPanel}>
+                <div style={{ fontWeight: 900 }}>Saved outfits</div>
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 10 }}>
+                  <input
+                    value={presetName}
+                    onChange={(e) => setPresetName(e.target.value)}
+                    placeholder={walletReady ? "Preset name" : "Connect wallet to save presets"}
+                    disabled={!walletReady || presetBusy}
+                    style={presetInput}
+                  />
+                  <button type="button" className="pill" onClick={saveCurrentPreset} disabled={!walletReady || presetBusy || !presetName.trim()}>
+                    {presetBusy ? "Saving..." : "Save outfit"}
+                  </button>
+                </div>
+                <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
+                  {outfitPresets.length === 0 ? (
+                    <div className="small">No saved outfits yet.</div>
+                  ) : (
+                    outfitPresets.map((preset) => (
+                      <div key={preset.id} style={presetRow}>
+                        <div>
+                          <div style={{ fontWeight: 800 }}>{preset.name}</div>
+                          <div className="small">{preset.updatedAt ? new Date(preset.updatedAt).toLocaleString() : "Saved outfit"}</div>
+                        </div>
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                          <button type="button" className="pill" onClick={() => applyPreset(preset)}>Apply</button>
+                          <button type="button" className="pill" onClick={() => deletePreset(preset.id)} disabled={presetBusy}>Delete</button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div style={miniPanel}>
+                <div style={{ fontWeight: 900 }}>Avatar share card</div>
+                <div className="small" style={{ marginTop: 6 }}>Use your public profile as a shareable card for friends and community.</div>
+                <div style={{ display: "flex", justifyContent: "center", marginTop: 12 }}>
+                  <AvatarShowcase layout={normalizeLayoutForApi(inv || {})} size={220} rounded={22} />
+                </div>
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
+                  <button type="button" className="pill" onClick={copyShareCard}>Copy profile link</button>
+                  {walletReady ? (
+                    <a href={`/community/${address.toLowerCase()}`} className="pill" style={{ display: "inline-flex" }}>
+                      Open public card
+                    </a>
+                  ) : null}
+                </div>
+                {shareMessage ? <div className="small" style={{ marginTop: 8 }}>{shareMessage}</div> : null}
+              </div>
+            </div>
+          </div>
+        </div>
 	      </div>
 	    </div>
 	  );
