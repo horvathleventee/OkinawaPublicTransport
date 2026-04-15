@@ -422,3 +422,83 @@ CREATE TABLE IF NOT EXISTS api_ingest_log (
   KEY idx_ingest_status (status_code),
   KEY idx_ingest_created (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------------
+-- 17) Notifications
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS notifications (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  wallet_address VARCHAR(42) NOT NULL,
+  type VARCHAR(64) NOT NULL,
+  title VARCHAR(120) NOT NULL,
+  body VARCHAR(255) NOT NULL,
+  ref_type VARCHAR(32) NULL,
+  ref_id BIGINT UNSIGNED NULL,
+  is_read TINYINT(1) NOT NULL DEFAULT 0,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+  PRIMARY KEY (id),
+  KEY idx_notifications_wallet (wallet_address),
+  KEY idx_notifications_read (wallet_address, is_read),
+  KEY idx_notifications_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------------
+-- 18) Cosmetic transfers (on-chain trade / transfer history)
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS cosmetic_transfers (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  tx_hash VARCHAR(66) NOT NULL,
+  chain_id BIGINT UNSIGNED NOT NULL,
+  item_id VARCHAR(100) NOT NULL,
+  token_id BIGINT UNSIGNED NOT NULL,
+  from_wallet VARCHAR(42) NOT NULL,
+  to_wallet VARCHAR(42) NOT NULL,
+  operator_wallet VARCHAR(42) NULL,
+  amount INT UNSIGNED NOT NULL DEFAULT 1,
+  metadata_json LONGTEXT NULL,                        -- JSON string
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_cosmetic_transfers_tx (tx_hash),
+  KEY idx_cosmetic_transfers_from (from_wallet),
+  KEY idx_cosmetic_transfers_to (to_wallet),
+  KEY idx_cosmetic_transfers_item (item_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------------
+-- 18) Trade listings
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS trade_listings (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  owner_wallet VARCHAR(42) NOT NULL,
+  item_id VARCHAR(100) NOT NULL,
+  note VARCHAR(240) NULL,
+  listing_status ENUM('open','accepted','cancelled') NOT NULL DEFAULT 'open',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+  PRIMARY KEY (id),
+  KEY idx_trade_listings_owner (owner_wallet),
+  KEY idx_trade_listings_status (listing_status),
+  KEY idx_trade_listings_item (item_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------------
+-- 19) Trade offers
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS trade_offers (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  listing_id BIGINT UNSIGNED NOT NULL,
+  offerer_wallet VARCHAR(42) NOT NULL,
+  offered_item_id VARCHAR(100) NOT NULL,
+  note VARCHAR(240) NULL,
+  offer_status ENUM('pending','accepted','rejected','cancelled') NOT NULL DEFAULT 'pending',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+  PRIMARY KEY (id),
+  KEY idx_trade_offers_listing (listing_id),
+  KEY idx_trade_offers_offerer (offerer_wallet),
+  KEY idx_trade_offers_status (offer_status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
