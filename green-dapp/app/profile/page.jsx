@@ -199,7 +199,7 @@ export default function ProfilePage() {
               <Link href="/avatar" className="pill" style={linkBtn}>
                 Edit avatar
               </Link>
-              {isConnected && address ? (
+              {mounted && isConnected && address ? (
                 <Link href={`/community/${address.toLowerCase()}`} className="pill" style={linkBtn}>
                   Open public profile
                 </Link>
