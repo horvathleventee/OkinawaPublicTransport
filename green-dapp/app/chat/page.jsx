@@ -25,6 +25,15 @@ export default function ChatPage() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const [chatError, setChatError] = useState("");
+  const [chatErrorDismissed, setChatErrorDismissed] = useState(false);
+
+  // Auto-clear chatError after 6s
+  useEffect(() => {
+    if (!chatError) { setChatErrorDismissed(false); return; }
+    setChatErrorDismissed(false);
+    const t = window.setTimeout(() => setChatErrorDismissed(true), 6000);
+    return () => window.clearTimeout(t);
+  }, [chatError]);
   const listRef = useRef(null);
 
   useEffect(() => {
@@ -290,7 +299,7 @@ export default function ChatPage() {
         </div>
       </div>
 
-      {error ? <div className="error">Error: {error}</div> : null}
+      {error ? <ChatAlert message={error} onDismiss={() => setError("")} /> : null}
 
       <div className="grid">
         <div className="card" style={{ gridColumn: "span 4", ...chatCardFrame }}>
@@ -427,7 +436,9 @@ export default function ChatPage() {
                   )}
                 </div>
 
-                {chatError ? <div className="small" style={{ color: "#ffb4b4" }}>{chatError}</div> : null}
+                {chatError && !chatErrorDismissed ? (
+                  <ChatAlert message={chatError} onDismiss={() => setChatErrorDismissed(true)} compact />
+                ) : null}
 
                 <div ref={listRef} style={messagesPanel}>
                   {messagesLoading && messages.length === 0 ? (
@@ -527,6 +538,50 @@ export default function ChatPage() {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function ChatAlert({ message, onDismiss, compact = false }) {
+  return (
+    <div style={{
+      display: "flex",
+      alignItems: "flex-start",
+      gap: 10,
+      padding: compact ? "10px 14px" : "13px 16px",
+      borderRadius: 14,
+      border: "1px solid rgba(239,68,68,.30)",
+      background: "rgba(239,68,68,.10)",
+      backdropFilter: "blur(8px)",
+      fontSize: compact ? 13 : 14,
+      color: "rgba(255,200,200,.95)",
+      lineHeight: 1.45,
+    }}>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(239,68,68,.9)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 1 }}>
+        <circle cx="12" cy="12" r="10" />
+        <line x1="12" y1="8" x2="12" y2="12" />
+        <line x1="12" y1="16" x2="12.01" y2="16" />
+      </svg>
+      <span style={{ flex: 1 }}>{message}</span>
+      <button
+        type="button"
+        onClick={onDismiss}
+        style={{
+          background: "none",
+          border: "none",
+          cursor: "pointer",
+          color: "rgba(255,200,200,.70)",
+          padding: "0 2px",
+          lineHeight: 1,
+          flexShrink: 0,
+        }}
+        title="Bezárás"
+      >
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+          <line x1="18" y1="6" x2="6" y2="18" />
+          <line x1="6" y1="6" x2="18" y2="18" />
+        </svg>
+      </button>
     </div>
   );
 }
