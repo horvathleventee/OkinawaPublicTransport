@@ -333,10 +333,6 @@ export default function ShopPage() {
       setErr("Balance not loaded yet.");
       return;
     }
-    if (Array.isArray(item.characters) && item.characters.length > 0 && !item.characters.includes(activeCharacter)) {
-      setErr(`This item fits the ${item.characters.join(" / ")} avatar only.`);
-      return;
-    }
     if (item.price > available) {
       setErr(`Not enough on-chain GCT. Need ${item.price}, available ${available.toFixed(2)}.`);
       return;
@@ -641,6 +637,19 @@ export default function ShopPage() {
                 <div className="metric-value" style={{ fontSize: 26 }}>
                   {mounted && isConnected ? available ?? "..." : "-"} <span className="metric-unit">GCT</span>
                 </div>
+                {mounted && isConnected && available === 0 && rewards?.claimedTokens > 0 && (() => {
+                  const status = rewards?.onChainStatus;
+                  let msg = null;
+                  if (status === "rpc_unreachable") msg = "Az RPC nem elérhető – a lánc fut?";
+                  else if (status === "contract_not_deployed") msg = "A GCT contract nincs deployolva ezen a láncon. Indítsd újra a Hardhat-et, deploy-olj, és igényeld újra a tokened.";
+                  else if (status === "ok" || status === "empty_response" || status === "call_failed") msg = "A láncon 0 GCT van, de a DB szerint már claimeltél. Valószínűleg újraindult a Hardhat-lánc – töröld a DB adatot (/api/dev/chain-data) és igényeld újra.";
+                  if (!msg) return null;
+                  return (
+                    <div style={{ fontSize: 11, color: "rgba(251,191,36,.9)", marginTop: 4, maxWidth: 220, lineHeight: 1.4 }}>
+                      ⚠ {msg}
+                    </div>
+                  );
+                })()}
               </div>
 
               <div>
@@ -664,10 +673,7 @@ export default function ShopPage() {
               <div className="shop-grid">
                 {(grouped[slot] || []).map((it) => {
                   const owned = inv ? isOwned(inv, it.id) : false;
-                  const characterLocked =
-                    Array.isArray(it.characters) &&
-                    it.characters.length > 0 &&
-                    !it.characters.includes(activeCharacter);
+                  const characterLocked = false;
                   const cosmeticToken = getCosmeticToken(it.id);
 
                   return (
@@ -696,37 +702,33 @@ export default function ShopPage() {
                           <div className="small">
                             {getItemRarity(it)} · {getItemTheme(it)}
                           </div>
-                          {Array.isArray(it.characters) && it.characters.length > 0 ? (
-                            <div className="small">
-                              fit: <span className="mono">{it.characters.join(" / ")}</span>
-                            </div>
-                          ) : null}
+
                         </div>
 
                         <div style={{ textAlign: "right" }}>
                           <div style={{ fontWeight: 900 }}>{it.price} GCT</div>
                           <div className="small">
-                            {characterLocked ? "needs other avatar" : owned ? "owned" : "not owned"}
+                            {owned ? "owned" : "not owned"}
                           </div>
                         </div>
                       </div>
 
                       <button
                         onClick={() => buy(it)}
-                        disabled={!inv || owned || characterLocked}
+                        disabled={!inv || owned}
                         style={{
                           marginTop: 12,
                           width: "100%",
                           padding: "10px 12px",
                           borderRadius: 12,
                           border: "1px solid rgba(255,255,255,.14)",
-                          background: owned || characterLocked ? "rgba(255,255,255,.04)" : "rgba(255,255,255,.08)",
+                          background: owned ? "rgba(255,255,255,.04)" : "rgba(255,255,255,.08)",
                           color: "rgba(255,255,255,.90)",
-                          cursor: owned || characterLocked ? "not-allowed" : "pointer",
+                          cursor: owned ? "not-allowed" : "pointer",
                           fontWeight: 900,
                         }}
                       >
-                        {characterLocked ? `Switch to ${it.characters.join(" / ")}` : owned ? "Already owned" : "Buy"}
+                        {owned ? "Already owned" : "Buy"}
                       </button>
 
                       <div className="small" style={{ marginTop: 8, opacity: 0.8 }}>

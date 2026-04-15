@@ -17,8 +17,8 @@ function getMetadataUri(item) {
 }
 
 function buildCosmeticCatalog() {
-  return loadItems().map((item, index) => ({
-    tokenId: getTokenIdForIndex(index),
+  return loadItems().map((item) => ({
+    tokenId: item.tokenId,
     itemId: item.id,
     name: item.name,
     slot: item.slot,

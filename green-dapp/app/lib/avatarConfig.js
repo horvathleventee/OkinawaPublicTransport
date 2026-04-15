@@ -84,7 +84,6 @@ export function getSlotScaleY(slot, item = null) {
   return baseScale;
 }
 
-export function isItemCompatibleWithCharacter(item, character) {
-  if (!item || !Array.isArray(item.characters) || item.characters.length === 0) return true;
-  return item.characters.includes(character);
+export function isItemCompatibleWithCharacter(_item, _character) {
+  return true;
 }

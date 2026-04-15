@@ -35,8 +35,8 @@ function deriveTheme(item) {
   return "everyday";
 }
 
-export const cosmeticTokenCatalog = items.map((item, index) => ({
-  tokenId: getCosmeticTokenIdByIndex(index),
+export const cosmeticTokenCatalog = items.map((item) => ({
+  tokenId: item.tokenId,
   itemId: item.id,
   name: item.name,
   slot: item.slot,
