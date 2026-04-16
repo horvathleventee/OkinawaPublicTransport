@@ -34,10 +34,18 @@ function HamburgerIcon({ open }) {
 }
 
 export default function Nav() {
-  const { isConnected, address } = useAccount();
+  const { isConnected: wagmiConnected } = useAccount();
   const { connectAsync } = useConnect();
   const { disconnect } = useDisconnect();
-  const { aaEnabled, isEmbedded, embeddedEmail, openEmbeddedAuthModal, logoutEmbedded } = useWallet();
+  const {
+    aaEnabled,
+    address,
+    isConnected,
+    isEmbedded,
+    embeddedEmail,
+    openEmbeddedAuthModal,
+    logoutEmbedded,
+  } = useWallet();
   const [theme, setTheme] = useState("dark");
   const [chatUnread, setChatUnread] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -138,7 +146,7 @@ export default function Nav() {
       await logoutEmbedded();
       return;
     }
-    disconnect();
+    if (wagmiConnected) disconnect();
   }
 
   const currentTheme = THEMES.find((t) => t.id === theme) || THEMES[0];
