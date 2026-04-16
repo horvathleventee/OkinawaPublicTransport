@@ -1,4 +1,4 @@
-import { createConfig, cookieStorage } from "@account-kit/react";
+import { createConfig } from "@account-kit/react";
 import { alchemy, sepolia } from "@account-kit/infra";
 import { QueryClient } from "@tanstack/react-query";
 
@@ -11,7 +11,6 @@ export const accountKitConfig = createConfig(
     }),
     chain: sepolia,
     enablePopupOauth: true,
-    storage: cookieStorage,
   },
   {
     auth: {

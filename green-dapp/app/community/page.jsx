@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAccount, useChainId, usePublicClient, useSwitchChain, useWalletClient } from "wagmi";
 import { hardhat } from "wagmi/chains";
@@ -10,7 +10,7 @@ import Nav from "../components/Nav";
 import AvatarShowcase from "../components/AvatarShowcase";
 import { apiDelete, apiGet, apiPost, communityName, fmt, formatLastActive, shortAddr } from "../lib/api";
 
-export default function CommunityPage() {
+function CommunityPageInner() {
   const { address, isConnected } = useWallet();
   const searchParams = useSearchParams();
   const chainId = useChainId();
@@ -1156,6 +1156,14 @@ function SocialFriendsPanel({ friends, loading, removeFriend, friendActionKey })
         </div>
       ))}
     </div>
+  );
+}
+
+export default function CommunityPage() {
+  return (
+    <Suspense>
+      <CommunityPageInner />
+    </Suspense>
   );
 }
 
