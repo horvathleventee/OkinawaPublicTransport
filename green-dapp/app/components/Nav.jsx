@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useAccount } from "wagmi";
+import { useAuthModal, useUser, useLogout } from "@account-kit/react";
 import { API } from "../lib/api";
 import NotificationBell from "./NotificationBell";
 
@@ -34,9 +35,15 @@ function HamburgerIcon({ open }) {
 
 export default function Nav() {
   const { isConnected, address } = useAccount();
+  const { openAuthModal } = useAuthModal();
+  const user = useUser();
+  const { logout } = useLogout();
   const [theme, setTheme] = useState("dark");
   const [chatUnread, setChatUnread] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     let timer;
@@ -90,8 +97,15 @@ export default function Nav() {
     };
   }, [isConnected, address]);
 
-  const dotClass = isConnected ? "dot on" : "dot off";
-  const dotTitle = isConnected ? "wallet connected" : "not connected";
+  const connected = isConnected || !!user;
+  const dotClass = connected ? "dot on" : "dot off";
+  const dotTitle = connected ? "wallet connected" : "not connected";
+
+  const displayLabel = user?.email
+    ? user.email.length > 18 ? user.email.slice(0, 16) + "…" : user.email
+    : address
+    ? address.slice(0, 6) + "…" + address.slice(-4)
+    : "Connected";
 
   function onThemeChange(nextTheme) {
     setTheme(nextTheme);
@@ -136,6 +150,30 @@ export default function Nav() {
         </Link>
         <Link href="/profile" className="nav-link" onClick={() => setMenuOpen(false)}>Profile</Link>
         <Link href="/avatar" className="nav-link" onClick={() => setMenuOpen(false)}>Avatar</Link>
+
+        {!mounted ? (
+          <button className="nav-connect-btn" type="button" suppressHydrationWarning>
+            Connect
+          </button>
+        ) : connected ? (
+          <button
+            className="nav-connect-btn nav-connect-btn--connected"
+            type="button"
+            title="Disconnect"
+            onClick={() => logout()}
+          >
+            <span>{displayLabel}</span>
+            <span className="nav-connect-close">✕</span>
+          </button>
+        ) : (
+          <button
+            className="nav-connect-btn"
+            type="button"
+            onClick={openAuthModal}
+          >
+            Connect
+          </button>
+        )}
 
         <NotificationBell />
 

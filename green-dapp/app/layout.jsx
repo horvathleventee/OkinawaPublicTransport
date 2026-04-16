@@ -1,4 +1,5 @@
 import "./globals.css";
+import "@account-kit/react/styles.css";
 
 import Providers from "./providers";
 
