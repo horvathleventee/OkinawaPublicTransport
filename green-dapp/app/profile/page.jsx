@@ -2,8 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { useAccount, useDisconnect } from "wagmi";
-import { useLogout, useUser } from "@account-kit/react";
+import { useDisconnect } from "wagmi";
 import { useWallet } from "../../lib/useWallet";
 import Nav from "../components/Nav";
 import ClaimOnChainButton from "../../components/ClaimOnChainButton";
@@ -16,18 +15,18 @@ const API =
 
 function shortAddr(a) {
   if (!a) return "";
-  return a.slice(0, 6) + "…" + a.slice(-4);
+  return `${a.slice(0, 6)}...${a.slice(-4)}`;
 }
 
 function fmt(n, digits = 3) {
-  if (n === null || n === undefined) return "—";
+  if (n === null || n === undefined) return "-";
   const num = Number(n);
   if (!Number.isFinite(num)) return String(n);
   return num.toLocaleString(undefined, { maximumFractionDigits: digits });
 }
 
 function fmtDate(v) {
-  if (!v) return "—";
+  if (!v) return "-";
   const d = new Date(v);
   if (!Number.isFinite(d.getTime())) return String(v);
   return d.toLocaleString();
@@ -47,7 +46,7 @@ async function fetchJson(url, options = {}) {
   if (!res.ok) {
     const msg = json?.details
       ? `${json.error || "Request failed"} | ${typeof json.details === "string" ? json.details : JSON.stringify(json.details)}`
-      : (json?.error || "Request failed");
+      : json?.error || "Request failed";
     throw new Error(msg);
   }
 
@@ -55,11 +54,8 @@ async function fetchJson(url, options = {}) {
 }
 
 export default function ProfilePage() {
-  const { address, isConnected, isEmbedded } = useWallet();
-  const { address: wagmiAddress } = useAccount();
-  const user = useUser();
+  const { address, isConnected, isEmbedded, embeddedEmail, logoutEmbedded } = useWallet();
   const { disconnect } = useDisconnect();
-  const { logout } = useLogout();
 
   const [mounted, setMounted] = useState(false);
   const [data, setData] = useState(null);
@@ -157,26 +153,34 @@ export default function ProfilePage() {
 
   function handleDisconnect() {
     if (isEmbedded) {
-      logout();
+      logoutEmbedded();
     } else {
       disconnect();
     }
-    setData(null); setClaimPreview(null); setClaims([]); setPurchases([]);
-    setAvatarLayout(null); setClaimAmount(""); setErr(""); setInfo("");
+    setData(null);
+    setClaimPreview(null);
+    setClaims([]);
+    setPurchases([]);
+    setAvatarLayout(null);
+    setClaimAmount("");
+    setErr("");
+    setInfo("");
   }
 
   const tokenSymbol = data?.token || "GCT";
-  // Prefer email for embedded wallet users, fallback to shortened address
   const displayName = mounted
     ? isConnected && address
-      ? (isEmbedded && user?.email) ? user.email : shortAddr(address)
+      ? isEmbedded && embeddedEmail
+        ? embeddedEmail
+        : shortAddr(address)
       : "Not connected"
-    : "Loading wallet…";
+    : "Loading wallet...";
 
   const qrInviteUrl =
     mounted && isConnected && address && typeof window !== "undefined"
       ? `${window.location.origin}/community?addFriend=${address.toLowerCase()}`
       : "";
+
   const qrImageUrl = useMemo(
     () =>
       qrInviteUrl
@@ -230,7 +234,6 @@ export default function ProfilePage() {
     <div className="shell">
       <Nav />
 
-      {/* ── HERO ─────────────────────────────────────────── */}
       <div className="profile-hero">
         <div className="profile-hero-avatar">
           <AvatarShowcase layout={avatarLayout} size={220} rounded={22} />
@@ -247,11 +250,7 @@ export default function ProfilePage() {
             {mounted && isConnected && address ? (
               <>
                 <span className="profile-hero-addr-short">{displayName}</span>
-                {isEmbedded && user?.email ? (
-                  <span className="profile-hero-addr-full mono">{address}</span>
-                ) : (
-                  <span className="profile-hero-addr-full mono">{address}</span>
-                )}
+                <span className="profile-hero-addr-full mono">{address}</span>
               </>
             ) : (
               <span className="profile-hero-addr-short">Not connected</span>
@@ -260,27 +259,26 @@ export default function ProfilePage() {
 
           <div className="profile-hero-stats">
             <div className="profile-stat">
-              <div className="profile-stat-value">{isConnected && data ? fmt(data.earnedTokens, 2) : "—"}</div>
+              <div className="profile-stat-value">{isConnected && data ? fmt(data.earnedTokens, 2) : "-"}</div>
               <div className="profile-stat-label">GCT earned</div>
             </div>
             <div className="profile-stat-divider" />
             <div className="profile-stat">
-              <div className="profile-stat-value">{isConnected && data ? fmt(data.spendableTokensOnChain, 2) : "—"}</div>
+              <div className="profile-stat-value">{isConnected && data ? fmt(data.spendableTokensOnChain, 2) : "-"}</div>
               <div className="profile-stat-label">on-chain</div>
             </div>
             <div className="profile-stat-divider" />
             <div className="profile-stat">
-              <div className="profile-stat-value">{isConnected && data ? fmt(data.eventsCount, 0) : "—"}</div>
+              <div className="profile-stat-value">{isConnected && data ? fmt(data.eventsCount, 0) : "-"}</div>
               <div className="profile-stat-label">trips</div>
             </div>
             <div className="profile-stat-divider" />
             <div className="profile-stat">
-              <div className="profile-stat-value">{isConnected && data ? fmt(data.breakdown?.co2SavedKg, 1) : "—"}</div>
-              <div className="profile-stat-label">kg CO₂ saved</div>
+              <div className="profile-stat-value">{isConnected && data ? fmt(data.breakdown?.co2SavedKg, 1) : "-"}</div>
+              <div className="profile-stat-label">kg CO2 saved</div>
             </div>
           </div>
 
-          {/* Claimed progress bar */}
           {isConnected && data ? (
             <div className="profile-progress-wrap">
               <div className="profile-progress-labels">
@@ -303,7 +301,7 @@ export default function ProfilePage() {
             {!mounted ? null : isConnected ? (
               <>
                 <button onClick={() => loadAll(address, { silent: true })} style={btnStyle}>
-                  {refreshing ? "Refreshing…" : "Refresh"}
+                  {refreshing ? "Refreshing..." : "Refresh"}
                 </button>
                 <button onClick={handleDisconnect} style={btnStyle2}>
                   Disconnect
@@ -312,11 +310,10 @@ export default function ProfilePage() {
             ) : null}
           </div>
 
-          {err && <div className="error" style={{ marginTop: 10 }}>Error: {err}</div>}
-          {info && <div className="profile-info-msg">{info}</div>}
+          {err ? <div className="error" style={{ marginTop: 10 }}>Error: {err}</div> : null}
+          {info ? <div className="profile-info-msg">{info}</div> : null}
         </div>
 
-        {/* QR */}
         {mounted && isConnected && address ? (
           <div className="profile-hero-qr">
             <div className="profile-qr-label">Friend QR</div>
@@ -330,8 +327,6 @@ export default function ProfilePage() {
       </div>
 
       <div className="grid">
-
-        {/* ── CLAIM ───────────────────────────────────────── */}
         <div className="card" style={{ gridColumn: "span 12" }}>
           <div className="accent green" />
           <div className="card-inner">
@@ -341,7 +336,7 @@ export default function ProfilePage() {
             ) : (
               <div className="profile-claim-row">
                 <div className="profile-claim-preview">
-                  <div className="profile-claim-amount">{claimPreview ? fmt(claimPreview.claimableTokens, 2) : "—"}</div>
+                  <div className="profile-claim-amount">{claimPreview ? fmt(claimPreview.claimableTokens, 2) : "-"}</div>
                   <div className="small">claimable {tokenSymbol}</div>
                 </div>
                 <div className="profile-claim-form">
@@ -355,26 +350,25 @@ export default function ProfilePage() {
                     style={{ ...inputStyle, flex: 1, minWidth: 140 }}
                   />
                   <button onClick={createClaim} disabled={claimLoading} style={btnStyle}>
-                    {claimLoading ? "Creating…" : "Create Claim"}
+                    {claimLoading ? "Creating..." : "Create Claim"}
                   </button>
                 </div>
                 <div className="small" style={{ color: "var(--muted)", marginTop: 6 }}>
-                  After creating, use &ldquo;Claim on-chain&rdquo; in the history below.
+                  After creating, use "Claim on-chain" in the history below.
                 </div>
               </div>
             )}
           </div>
         </div>
 
-        {/* ── ACTIVITY FEED ───────────────────────────────── */}
         <div className="card" style={{ gridColumn: "span 12" }}>
           <div className="accent cyan" />
           <div className="card-inner">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
               <div className="section-title" style={{ marginBottom: 0 }}>Activity feed</div>
               <div style={{ display: "flex", gap: 8 }}>
-                <span className="badge" style={{ background: "rgba(52,211,153,.12)", color: "#34d399" }}>● Claims</span>
-                <span className="badge" style={{ background: "rgba(251,191,36,.12)", color: "#fbbf24" }}>● Purchases</span>
+                <span className="badge" style={{ background: "rgba(52,211,153,.12)", color: "#34d399" }}>Claims</span>
+                <span className="badge" style={{ background: "rgba(251,191,36,.12)", color: "#fbbf24" }}>Purchases</span>
               </div>
             </div>
 
@@ -417,25 +411,6 @@ export default function ProfilePage() {
   );
 }
 
-function MetricCard({ title, value, unit, badge, accent = "", colSpan = 4 }) {
-  const span = `span ${colSpan}`;
-  return (
-    <div className="card" style={{ gridColumn: span }}>
-      <div className={`accent ${accent}`} />
-      <div className="card-inner">
-        <div className="card-header">
-          <div className="card-title">{title}</div>
-          <div className="badge">{badge}</div>
-        </div>
-        <div className="metric">
-          <div className="metric-value">{value}</div>
-          <div className="metric-unit">{unit}</div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 const btnStyle = {
   background: "rgba(255,255,255,.08)",
   color: "rgba(255,255,255,.92)",
@@ -468,5 +443,3 @@ const linkBtn = {
   alignItems: "center",
   justifyContent: "center",
 };
-
-
