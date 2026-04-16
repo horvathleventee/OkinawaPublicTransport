@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { encodeFunctionData } from "viem";
-import { useAccount, useChainId, usePublicClient, useSwitchChain, useWalletClient } from "wagmi";
-import { hardhat } from "wagmi/chains";
+import { useChainId, usePublicClient, useSwitchChain, useWalletClient } from "wagmi";
+import { sepolia } from "wagmi/chains";
+import { useWallet } from "../lib/useWallet";
 import {
   createAlchemyClaimClient,
   getAlchemyAaUnavailableReason,
@@ -40,11 +41,11 @@ async function fetchJson(url, options = {}) {
 }
 
 export default function ClaimOnChainButton({ claim, onDone }) {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected, isEmbedded, smartClient } = useWallet();
   const chainId = useChainId();
   const { switchChainAsync } = useSwitchChain();
   const { data: walletClient } = useWalletClient();
-  const publicClient = usePublicClient({ chainId: hardhat.id });
+  const publicClient = usePublicClient({ chainId: sepolia.id });
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -56,7 +57,7 @@ export default function ClaimOnChainButton({ claim, onDone }) {
       setError("Connect wallet first.");
       return;
     }
-    if (!walletClient || !publicClient) {
+    if (isEmbedded ? !smartClient : (!walletClient || !publicClient)) {
       setError("Wallet or public client is not ready.");
       return;
     }
@@ -76,7 +77,9 @@ export default function ClaimOnChainButton({ claim, onDone }) {
       }
 
       const targetChainId = Number(payload.chainId);
-      if (chainId !== targetChainId) {
+
+      // Chain switch only needed for injected wallets
+      if (!isEmbedded && chainId !== targetChainId) {
         await switchChainAsync({ chainId: targetChainId });
       }
 
@@ -91,7 +94,20 @@ export default function ClaimOnChainButton({ claim, onDone }) {
       let txHash;
       let usedGaslessClaim = false;
 
-      if (isAlchemyAaActiveForChain(targetChainId)) {
+      if (isEmbedded && smartClient) {
+        // Embedded wallet — fully gasless via Account Kit LightAccount
+        txHash = await smartClient.sendTransaction({
+          to: payload.contractAddress,
+          data: encodeFunctionData({
+            abi: greenCommuteTokenAbi,
+            functionName: "claimReward",
+            args: claimArgs,
+          }),
+          value: 0n,
+        });
+        usedGaslessClaim = true;
+      } else if (isAlchemyAaActiveForChain(targetChainId)) {
+        // MetaMask wrapped in LightAccount — gasless claim
         const smartAccountClient = await createAlchemyClaimClient({ address });
         txHash = await smartAccountClient.sendTransaction({
           to: payload.contractAddress,
@@ -110,7 +126,7 @@ export default function ClaimOnChainButton({ claim, onDone }) {
           abi: greenCommuteTokenAbi,
           functionName: "claimReward",
           args: claimArgs,
-          chain: hardhat,
+          chain: sepolia,
         });
       }
 
