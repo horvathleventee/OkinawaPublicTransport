@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useAccount } from "wagmi";
-import { useUser, useSmartAccountClient } from "@account-kit/react";
+import { useAuthModal, useLogout, useSmartAccountClient, useUser } from "@account-kit/react";
 
 const POLICY_ID = process.env.NEXT_PUBLIC_ALCHEMY_GAS_POLICY_ID;
 const AA_ENABLED = ["1", "true", "yes"].includes(
@@ -22,6 +22,8 @@ export function useWallet() {
   useEffect(() => { setMounted(true); }, []);
 
   const wagmi = useAccount();
+  const authModal = AA_ENABLED ? useAuthModal() : { openAuthModal: () => {} };
+  const logoutApi = AA_ENABLED ? useLogout() : { logout: () => Promise.resolve() };
   const user = AA_ENABLED ? useUser() : null;
   const { client: smartAccountClient, isLoadingClient } = AA_ENABLED
     ? useSmartAccountClient({
@@ -39,6 +41,9 @@ export function useWallet() {
       smartClient: null,
       smartAddress: null,
       isLoadingWallet: true,
+      embeddedEmail: null,
+      openEmbeddedAuthModal: () => {},
+      logoutEmbedded: async () => {},
     };
   }
 
@@ -50,6 +55,9 @@ export function useWallet() {
       isEmbedded: false,
       smartClient: null,
       smartAddress: null,
+      embeddedEmail: null,
+      openEmbeddedAuthModal: authModal.openAuthModal,
+      logoutEmbedded: logoutApi.logout,
     };
   }
 
@@ -64,6 +72,9 @@ export function useWallet() {
       smartClient: smartAccountClient ?? null,
       smartAddress,
       isLoadingWallet: isLoadingClient || !smartAddress,
+      embeddedEmail: user.email ?? null,
+      openEmbeddedAuthModal: authModal.openAuthModal,
+      logoutEmbedded: logoutApi.logout,
     };
   }
 
@@ -73,5 +84,8 @@ export function useWallet() {
     isEmbedded: false,
     smartClient: null,
     smartAddress: null,
+    embeddedEmail: null,
+    openEmbeddedAuthModal: authModal.openAuthModal,
+    logoutEmbedded: logoutApi.logout,
   };
 }

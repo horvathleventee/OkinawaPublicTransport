@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useAccount } from "wagmi";
-import { useAuthModal, useUser, useLogout } from "@account-kit/react";
+import { injected, useAccount, useConnect, useDisconnect } from "wagmi";
+import { useWallet } from "../../lib/useWallet";
 import { API } from "../lib/api";
 import NotificationBell from "./NotificationBell";
 
@@ -35,9 +35,9 @@ function HamburgerIcon({ open }) {
 
 export default function Nav() {
   const { isConnected, address } = useAccount();
-  const { openAuthModal } = useAuthModal();
-  const user = useUser();
-  const { logout } = useLogout();
+  const { connectAsync } = useConnect();
+  const { disconnect } = useDisconnect();
+  const { isEmbedded, embeddedEmail, openEmbeddedAuthModal, logoutEmbedded } = useWallet();
   const [theme, setTheme] = useState("dark");
   const [chatUnread, setChatUnread] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -61,13 +61,12 @@ export default function Nav() {
   useEffect(() => {
     try {
       document.documentElement.setAttribute("data-theme", theme);
-    } catch {
-      // ignore
-    }
+    } catch {}
   }, [theme]);
 
   useEffect(() => {
     let cancelled = false;
+
     async function loadUnread() {
       if (!isConnected || !address) {
         setChatUnread(0);
@@ -89,6 +88,7 @@ export default function Nav() {
         if (!cancelled) setChatUnread(0);
       }
     }
+
     loadUnread();
     const timer = window.setInterval(loadUnread, 20000);
     return () => {
@@ -97,14 +97,16 @@ export default function Nav() {
     };
   }, [isConnected, address]);
 
-  const connected = isConnected || !!user;
+  const connected = isConnected;
   const dotClass = connected ? "dot on" : "dot off";
   const dotTitle = connected ? "wallet connected" : "not connected";
 
-  const displayLabel = user?.email
-    ? user.email.length > 18 ? user.email.slice(0, 16) + "…" : user.email
+  const displayLabel = embeddedEmail
+    ? embeddedEmail.length > 18
+      ? `${embeddedEmail.slice(0, 16)}...`
+      : embeddedEmail
     : address
-    ? address.slice(0, 6) + "…" + address.slice(-4)
+    ? `${address.slice(0, 6)}...${address.slice(-4)}`
     : "Connected";
 
   function onThemeChange(nextTheme) {
@@ -120,6 +122,25 @@ export default function Nav() {
     onThemeChange(next.id);
   }
 
+  async function handleConnect() {
+    if (isEmbedded) {
+      openEmbeddedAuthModal();
+      return;
+    }
+
+    try {
+      await connectAsync({ connector: injected() });
+    } catch {}
+  }
+
+  async function handleDisconnect() {
+    if (isEmbedded) {
+      await logoutEmbedded();
+      return;
+    }
+    disconnect();
+  }
+
   const currentTheme = THEMES.find((t) => t.id === theme) || THEMES[0];
 
   return (
@@ -132,7 +153,7 @@ export default function Nav() {
       <button
         className="nav-hamburger"
         type="button"
-        aria-label="Navigáció megnyitása"
+        aria-label="Open navigation"
         aria-expanded={menuOpen}
         onClick={() => setMenuOpen((o) => !o)}
       >
@@ -160,16 +181,16 @@ export default function Nav() {
             className="nav-connect-btn nav-connect-btn--connected"
             type="button"
             title="Disconnect"
-            onClick={() => logout()}
+            onClick={handleDisconnect}
           >
             <span style={{ overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>{displayLabel}</span>
-            <span className="nav-connect-close" style={{ flexShrink: 0 }}>✕</span>
+            <span className="nav-connect-close" style={{ flexShrink: 0 }}>×</span>
           </button>
         ) : (
           <button
             className="nav-connect-btn"
             type="button"
-            onClick={openAuthModal}
+            onClick={handleConnect}
           >
             Connect
           </button>
