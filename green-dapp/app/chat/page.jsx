@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useWallet } from "../../lib/useWallet";
@@ -8,7 +8,7 @@ import Nav from "../components/Nav";
 import AvatarShowcase from "../components/AvatarShowcase";
 import { apiGet, apiPost, communityName, formatLastActive, shortAddr } from "../lib/api";
 
-export default function ChatPage() {
+function ChatPageInner() {
   const searchParams = useSearchParams();
   const { address, isConnected } = useWallet();
 
@@ -543,6 +543,14 @@ export default function ChatPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ChatPage() {
+  return (
+    <Suspense>
+      <ChatPageInner />
+    </Suspense>
   );
 }
 
