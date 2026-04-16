@@ -277,9 +277,28 @@ code{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liber
 
 .badge{
   font-size: 11px;
-  padding: 4px 8px;
+  font-weight: 700;
+  padding: 4px 10px;
   border-radius: 999px;
   border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--card2) 55%, transparent);
+  color: var(--muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+  align-self: flex-start;
+}
+.badge--equipped {
+  border-color: rgba(34,197,94,.35);
+  background: rgba(34,197,94,.14);
+  color: rgba(134,239,172,.95);
+}
+.badge--warning {
+  border-color: rgba(245,158,11,.35);
+  background: rgba(245,158,11,.14);
+  color: rgba(253,211,77,.95);
+}
+.badge--owned {
+  border-color: var(--border);
   background: color-mix(in srgb, var(--card2) 55%, transparent);
   color: var(--muted);
 }
@@ -456,10 +475,15 @@ code{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liber
   gap: 14px;
 }
 @media (max-width: 1100px) {
+  .shop-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 768px) {
   .shop-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
-@media (max-width: 650px) {
-  .shop-grid { grid-template-columns: repeat(1, minmax(0, 1fr)); }
+@media (max-width: 480px) {
+  .shop-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .shop-item { padding: 10px; border-radius: 12px; }
+  .shop-img { height: 110px; }
 }
 .shop-item {
   border: 1px solid var(--ui-soft-border);
@@ -627,6 +651,36 @@ code{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liber
 .theme-emoji{ font-size: 14px; line-height: 1; }
 .theme-text{ letter-spacing: .02em; }
 
+/* ── Account Kit connect button ─────────────────────────────── */
+.nav-connect-btn {
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(34,211,238,.4);
+  background: rgba(34,211,238,.12);
+  color: rgba(34,211,238,.95);
+  font-weight: 800;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: transform 120ms ease, background 120ms ease;
+}
+.nav-connect-btn:hover {
+  background: rgba(34,211,238,.22);
+  transform: translateY(-1px);
+}
+.nav-connect-btn--connected {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-color: rgba(16,185,129,.4);
+  background: rgba(16,185,129,.10);
+  color: rgba(16,185,129,.95);
+}
+.nav-connect-btn--connected:hover {
+  background: rgba(16,185,129,.20);
+}
+.nav-connect-close { font-size: 10px; opacity: .65; line-height: 1; }
+
 /* ── Hamburger button (hidden on desktop) ───────────────────── */
 .nav-hamburger {
   display: none;
@@ -725,7 +779,7 @@ code{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liber
     font-size: 22px;
   }
 
-  /* Shop grid 2 cols */
+  /* Shop grid 2 cols on tablet */
   .shop-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -735,9 +789,15 @@ code{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liber
 @media (max-width: 520px) {
   .grid { grid-template-columns: repeat(1, minmax(0, 1fr)); }
   .metric-value { font-size: 20px; }
-  .shop-grid { grid-template-columns: repeat(1, minmax(0, 1fr)); }
+  .shop-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   .theme-text { display: none; }
   .theme-cycle-btn { min-width: auto; }
+  /* slot tabs: icon only, no label */
+  .slot-tab-label { display: none; }
+  .slot-tab-btn { padding: 8px 10px; gap: 0; }
+  /* avatar wardrobe tighter */
+  .shop-item { padding: 10px; }
+  .shop-img { height: 100px; }
 }
 
 /* ──────────────────────────────────────────────────────────────
