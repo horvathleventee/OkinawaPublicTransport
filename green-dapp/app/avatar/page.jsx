@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { hardhat } from "wagmi/chains";
-import { useAccount, useChainId, usePublicClient, useSwitchChain, useWalletClient } from "wagmi";
+import { encodeFunctionData } from "viem";
+import { sepolia } from "wagmi/chains";
+import { useChainId, usePublicClient, useSwitchChain, useWalletClient } from "wagmi";
+import { useWallet } from "../../lib/useWallet";
 import Nav from "../components/Nav";
 import AvatarShowcase from "../components/AvatarShowcase";
 import { equipItem, loadInventory, saveInventory } from "../lib/inventory";
@@ -105,11 +107,11 @@ async function saveLayoutToApi(walletAddress, inv) {
 }
 
 export default function AvatarPage() {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected, isEmbedded, smartClient } = useWallet();
   const chainId = useChainId();
   const { switchChainAsync } = useSwitchChain();
   const { data: walletClient } = useWalletClient();
-  const publicClient = usePublicClient({ chainId: hardhat.id });
+  const publicClient = usePublicClient({ chainId: sepolia.id });
 
   const [mounted, setMounted] = useState(false);
   const [items, setItems] = useState([]);
@@ -530,7 +532,7 @@ export default function AvatarPage() {
       setLayoutMessage("Connect wallet to transfer NFT cosmetics.");
       return;
     }
-    if (!walletClient || !publicClient) {
+    if (isEmbedded ? !smartClient : (!walletClient || !publicClient)) {
       setStorageStatus("error");
       setLayoutMessage("Wallet is not ready.");
       return;
@@ -563,18 +565,31 @@ export default function AvatarPage() {
     setLayoutMessage(`Sending ${item.name}...`);
 
     try {
-      if (chainId !== Number(cosmeticsConfig.chainId)) {
+      if (!isEmbedded && chainId !== Number(cosmeticsConfig.chainId)) {
         await switchChainAsync({ chainId: Number(cosmeticsConfig.chainId) });
       }
 
-      const txHash = await walletClient.writeContract({
-        account: walletClient.account,
-        address: cosmeticsConfig.contractAddress,
-        abi: greenCommuteCosmeticsAbi,
-        functionName: "safeTransferFrom",
-        args: [address, recipient, BigInt(cosmeticToken.tokenId), 1n, "0x"],
-        chain: hardhat,
-      });
+      let txHash;
+      if (isEmbedded && smartClient) {
+        txHash = await smartClient.sendTransaction({
+          to: cosmeticsConfig.contractAddress,
+          data: encodeFunctionData({
+            abi: greenCommuteCosmeticsAbi,
+            functionName: "safeTransferFrom",
+            args: [address, recipient, BigInt(cosmeticToken.tokenId), 1n, "0x"],
+          }),
+          value: 0n,
+        });
+      } else {
+        txHash = await walletClient.writeContract({
+          account: walletClient.account,
+          address: cosmeticsConfig.contractAddress,
+          abi: greenCommuteCosmeticsAbi,
+          functionName: "safeTransferFrom",
+          args: [address, recipient, BigInt(cosmeticToken.tokenId), 1n, "0x"],
+          chain: sepolia,
+        });
+      }
 
       const receipt = await publicClient.waitForTransactionReceipt({
         hash: txHash,
@@ -627,8 +642,10 @@ export default function AvatarPage() {
       }
     } catch (e) {
       console.error("transferCosmetic failed:", e);
-      setStorageStatus("error");
-      setLayoutMessage(String(e?.message || e));
+      if (!String(e?.message || e).toLowerCase().includes("replacement underpriced")) {
+        setStorageStatus("error");
+        setLayoutMessage(String(e?.message || e));
+      }
     } finally {
       setTransferBusy(false);
     }
@@ -719,37 +736,6 @@ export default function AvatarPage() {
             <div className="section-title">
               Preview <span className="hint">(drag with cursor when Edit mode is on)</span>
             </div>
-
-            <div className="small" style={{ marginTop: 6 }}>
-              Storage status:{" "}
-              <span
-                style={{
-                  color:
-                    storageStatus === "api"
-                      ? "#86efac"
-                      : storageStatus === "local"
-                      ? "#fcd34d"
-                      : storageStatus === "error"
-                      ? "#fca5a5"
-                      : "var(--muted)",
-                  fontWeight: 800,
-                }}
-              >
-                {storageStatus}
-              </span>
-            </div>
-
-            {layoutMessage ? (
-              <div
-                className="small"
-                style={{
-                  marginTop: 6,
-                  color: storageStatus === "error" ? "#fca5a5" : "var(--muted)",
-                }}
-              >
-                {layoutMessage}
-              </div>
-            ) : null}
 
             <div
               ref={stageRef}
@@ -1012,23 +998,21 @@ export default function AvatarPage() {
                         />
                       </div>
 
-                      <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
-                        <div>
-                          <div style={{ fontWeight: 900 }}>{it.name}</div>
-                          <div className="small">
-                            slot: <span className="mono">{it.slot}</span>
-                          </div>
-                          {cosmeticToken?.tokenId ? (
-                            <div className="small">
-                              NFT token: <span className="mono">#{cosmeticToken.tokenId}</span>
-                            </div>
-                          ) : null}
-                          <div className="small" style={{ marginTop: 4 }}>
-                            {getItemRarity(it)} · {getItemTheme(it)}
-                          </div>
-                        </div>
-                        <div className="badge">
+                      <div>
+                        <div style={{ fontWeight: 900, marginBottom: 4 }}>{it.name}</div>
+                        <div className={`badge ${active ? "badge--equipped" : duplicateAccessory ? "badge--warning" : "badge--owned"}`} style={{ display: "inline-block", marginBottom: 6 }}>
                           {active ? "equipped" : duplicateAccessory ? "used in other slot" : "owned"}
+                        </div>
+                        <div className="small">
+                          slot: <span className="mono">{it.slot}</span>
+                        </div>
+                        {cosmeticToken?.tokenId ? (
+                          <div className="small">
+                            NFT token: <span className="mono">#{cosmeticToken.tokenId}</span>
+                          </div>
+                        ) : null}
+                        <div className="small" style={{ marginTop: 4 }}>
+                          {getItemRarity(it)} · {getItemTheme(it)}
                         </div>
                       </div>
 
@@ -1037,9 +1021,9 @@ export default function AvatarPage() {
                         onClick={() => equip(activeWardrobeSlot, it.id)}
                         disabled={duplicateAccessory}
                         style={{
-                          marginTop: 12,
+                          marginTop: 8,
                           width: "100%",
-                          padding: "10px 12px",
+                          padding: "10px 14px",
                           borderRadius: 12,
                           border: "1px solid var(--ui-soft-border)",
                           background: active
@@ -1049,43 +1033,53 @@ export default function AvatarPage() {
                             : "var(--ui-soft-bg)",
                           color: "var(--ui-soft-text)",
                           cursor: duplicateAccessory ? "not-allowed" : "pointer",
-                          fontWeight: 900,
+                          fontWeight: 800,
+                          fontSize: 14,
                         }}
                       >
-                        {active ? "Equipped" : duplicateAccessory ? "Already in other slot" : "Equip"}
+                        {active ? "✓ Equipped" : duplicateAccessory ? "Other slot" : "Equip"}
                       </button>
                       {walletReady && cosmeticsConfig?.configured && cosmeticToken?.tokenId ? (
-                        <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setTransferItemId((prev) => (prev === it.id ? "" : it.id));
+                            setTransferWallet("");
+                          }}
+                          style={{
+                            marginTop: 8,
+                            width: "100%",
+                            padding: "10px 14px",
+                            borderRadius: 12,
+                            border: "1px solid var(--ui-soft-border)",
+                            background: transferOpen ? "rgba(239,68,68,.12)" : "var(--ui-soft-bg)",
+                            color: transferOpen ? "rgba(252,165,165,.9)" : "var(--ui-soft-text)",
+                            cursor: "pointer",
+                            fontWeight: 800,
+                            fontSize: 14,
+                          }}
+                        >
+                          {transferOpen ? "✕ Cancel" : "Send NFT"}
+                        </button>
+                      ) : null}
+
+                      {transferOpen ? (
+                        <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
+                          <input
+                            value={transferWallet}
+                            onChange={(e) => setTransferWallet(e.target.value)}
+                            placeholder="Recipient wallet address"
+                            disabled={transferBusy}
+                            style={presetInput}
+                          />
                           <button
                             type="button"
-                            onClick={() => {
-                              setTransferItemId((prev) => (prev === it.id ? "" : it.id));
-                              setTransferWallet("");
-                            }}
-                            style={btnSecondary}
+                            className="pill"
+                            onClick={() => transferCosmetic(it)}
+                            disabled={transferBusy || !transferWallet.trim()}
                           >
-                            {transferOpen ? "Cancel send" : "Send NFT"}
+                            {transferBusy ? "Sending..." : "Confirm transfer"}
                           </button>
-
-                          {transferOpen ? (
-                            <div style={{ display: "grid", gap: 8 }}>
-                              <input
-                                value={transferWallet}
-                                onChange={(e) => setTransferWallet(e.target.value)}
-                                placeholder="Recipient wallet address"
-                                disabled={transferBusy}
-                                style={presetInput}
-                              />
-                              <button
-                                type="button"
-                                className="pill"
-                                onClick={() => transferCosmetic(it)}
-                                disabled={transferBusy || !transferWallet.trim()}
-                              >
-                                {transferBusy ? "Sending..." : "Confirm transfer"}
-                              </button>
-                            </div>
-                          ) : null}
                         </div>
                       ) : null}
                     </div>
