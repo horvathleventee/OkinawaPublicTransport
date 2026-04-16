@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { useAccount } from "wagmi";
+import { useWallet } from "../../lib/useWallet";
 import { API } from "../lib/api";
 
 const TYPE_ROUTES = {
@@ -44,7 +44,7 @@ function setLastSeenId(address, id) {
 }
 
 export default function NotificationBell() {
-  const { isConnected, address } = useAccount();
+  const { isConnected, address } = useWallet();
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [notifications, setNotifications] = useState([]);

@@ -3,14 +3,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useAccount } from "wagmi";
+import { useWallet } from "../../lib/useWallet";
 import Nav from "../components/Nav";
 import AvatarShowcase from "../components/AvatarShowcase";
 import { apiGet, apiPost, communityName, formatLastActive, shortAddr } from "../lib/api";
 
 export default function ChatPage() {
   const searchParams = useSearchParams();
-  const { address, isConnected } = useAccount();
+  const { address, isConnected } = useWallet();
 
   const [mounted, setMounted] = useState(false);
   const [conversations, setConversations] = useState([]);

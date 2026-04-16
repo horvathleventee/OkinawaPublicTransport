@@ -2,13 +2,13 @@
 
 import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useAccount } from "wagmi";
+import { useWallet } from "../../../lib/useWallet";
 import Nav from "../../components/Nav";
 import AvatarShowcase from "../../components/AvatarShowcase";
 import { apiDelete, apiGet, apiPost, communityName, fmt, formatLastActive, shortAddr } from "../../lib/api";
 
 export default function CommunityProfilePage({ params }) {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected } = useWallet();
   const resolvedParams = use(params);
   const wallet = decodeURIComponent(resolvedParams?.wallet || "").toLowerCase();
   const [mounted, setMounted] = useState(false);

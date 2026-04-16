@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useAccount } from "wagmi";
+import { useWallet } from "../../lib/useWallet";
 import Nav from "../components/Nav";
 import { apiGet, fmt } from "../lib/api";
 
@@ -19,7 +19,7 @@ const MODE_COLORS = {
 };
 
 export default function AnalyticsPage() {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected } = useWallet();
 
   const [scope, setScope] = useState("global"); // global | mine
   const [bucket, setBucket] = useState("hour");
