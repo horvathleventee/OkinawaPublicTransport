@@ -1,12 +1,19 @@
 const API = process.env.API_URL || "http://localhost:4100";
 const ENDPOINT = `${API}/api/events`;
 
-const wallets = [
+const baseWallets = [
   "0xUserA000000000000000000000000000000000001",
   "0xUserB000000000000000000000000000000000002",
   "0xUserC000000000000000000000000000000000003",
   "0xUserD000000000000000000000000000000000004",
 ];
+
+// Add your own wallet via EXTRA_WALLETS env var (comma-separated addresses)
+const extraWallets = process.env.EXTRA_WALLETS
+  ? process.env.EXTRA_WALLETS.split(",").map(w => w.trim()).filter(Boolean)
+  : [];
+
+const wallets = [...baseWallets, ...extraWallets];
 
 const tripTypes = ["bus", "rail", "monorail", "park&ride"];
 

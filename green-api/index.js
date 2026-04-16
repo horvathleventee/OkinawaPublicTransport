@@ -114,7 +114,8 @@ const dummyWallets = [
   "0x2546BcD3c84621e976D8185a91A922aE77ECEc30",
   "0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199",
   "0xcd3B766CCDd6AE721141F452C550Ca635964ce71",
-  "0xuserd000000000000000000000000000000000004",
+  "0xC927aad930e2fc68c2765c7a5FBD99b03121c6FB",
+  "0xE1887301cE15fEFb9F2Fd10a4628F52cB500AD5c",
 ];
 
 const dummyTripTypes = ["bus", "rail", "monorail", "park&ride"];
@@ -5138,7 +5139,13 @@ app.post("/api/shop/purchase", async (req, res) => {
     }
 
     const provider = getGctProvider();
-    const receipt = await provider.getTransactionReceipt(txHash);
+    // Retry up to 5 times with 2s delay — tx may be mid-propagation when the request arrives
+    let receipt = null;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      receipt = await provider.getTransactionReceipt(txHash);
+      if (receipt) break;
+      await new Promise(r => setTimeout(r, 2000));
+    }
     if (!receipt) {
       return res.status(400).json({
         ok: false,
@@ -5717,10 +5724,14 @@ app.get("/api/users/:wallet/inventory", async (req, res) => {
       [walletAddress]
     );
 
-    const ownedFromDb = rows
-      .map((r) => r.item_id)
-      .filter((itemId) => !hasCosmeticsContractConfigured() || !isTokenizedAvatarItem(itemId));
+    const allFromDb = rows.map((r) => r.item_id);
     const ownedFromChain = await getOnChainOwnedCosmeticItemIds(walletAddress);
+    // If contract is configured but chain returned nothing (e.g. after Hardhat reset),
+    // fall back to DB records so owned items are always visible.
+    const chainIsEmpty = hasCosmeticsContractConfigured() && ownedFromChain.length === 0;
+    const ownedFromDb = allFromDb.filter(
+      (itemId) => !hasCosmeticsContractConfigured() || chainIsEmpty || !isTokenizedAvatarItem(itemId)
+    );
     const ownedItemIds = [...new Set([...ownedFromDb, ...ownedFromChain])];
 
     res.json({
@@ -5769,10 +5780,12 @@ app.post("/api/users/:wallet/cosmetics/sync", async (req, res) => {
       `,
       [walletAddress]
     );
-    const ownedFromDb = inventoryRows
-      .map((row) => row.item_id)
-      .filter((itemId) => !hasCosmeticsContractConfigured() || !isTokenizedAvatarItem(itemId));
+    const allFromDb = inventoryRows.map((row) => row.item_id);
     const ownedFromChain = await getOnChainOwnedCosmeticItemIds(walletAddress);
+    const chainIsEmpty = hasCosmeticsContractConfigured() && ownedFromChain.length === 0;
+    const ownedFromDb = allFromDb.filter(
+      (itemId) => !hasCosmeticsContractConfigured() || chainIsEmpty || !isTokenizedAvatarItem(itemId)
+    );
     const ownedItemIds = [...new Set([...ownedFromDb, ...ownedFromChain])];
 
     return res.json({
@@ -5959,6 +5972,42 @@ app.patch("/api/users/:wallet/notifications/:id/read", async (req, res) => {
     console.error("PATCH /api/users/:wallet/notifications/:id/read error:", e);
     res.status(500).json({ error: "Failed to mark notification as read", details: e?.message || String(e) });
   }
+});
+
+// ----------------------------------------------------
+// ADMIN: seed events for a wallet
+// ----------------------------------------------------
+app.post("/api/admin/seed-wallet", async (req, res) => {
+  const { wallet, trips = 50 } = req.body || {};
+  if (!wallet || !/^0x[a-fA-F0-9]{40}$/i.test(wallet)) {
+    return res.status(400).json({ error: "wallet must be a valid 0x address" });
+  }
+  const tripTypes = ["bus", "rail", "monorail", "park&ride"];
+  const count = Math.min(Number(trips) || 50, 500);
+  const inserted = [];
+  for (let i = 0; i < count; i++) {
+    const body = {
+      walletAddress: wallet.toLowerCase(),
+      tripType: tripTypes[i % tripTypes.length],
+      distanceKm: Number((Math.random() * 15 + 2).toFixed(2)),
+      routeId: "R-" + Math.floor(Math.random() * 30 + 1),
+      stopId: "S-" + Math.floor(Math.random() * 200 + 1),
+      source: "admin-seed",
+      ts: Date.now() - i * 3_600_000,
+    };
+    try {
+      const r = await fetch(`http://localhost:${PORT}/api/events`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const j = await r.json();
+      inserted.push(j?.eventId || null);
+    } catch {
+      // skip individual failures
+    }
+  }
+  res.json({ ok: true, wallet: wallet.toLowerCase(), requested: count, inserted: inserted.length });
 });
 
 // ----------------------------------------------------
