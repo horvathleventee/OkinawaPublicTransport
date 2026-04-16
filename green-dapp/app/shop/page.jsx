@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { parseUnits } from "viem";
-import { hardhat } from "wagmi/chains";
-import { useAccount, useChainId, usePublicClient, useSwitchChain, useWalletClient } from "wagmi";
+import { encodeFunctionData, parseUnits } from "viem";
+import { sepolia } from "wagmi/chains";
+import { useChainId, usePublicClient, useSwitchChain, useWalletClient } from "wagmi";
+import { useWallet } from "../../lib/useWallet";
 import { addOwned, isOwned, loadInventory, saveInventory } from "../lib/inventory";
 import {
   AVATAR_SHOP_SLOTS,
@@ -131,11 +132,11 @@ async function syncCosmetics(addr) {
 }
 
 export default function ShopPage() {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected, isEmbedded, smartClient } = useWallet();
   const chainId = useChainId();
   const { switchChainAsync } = useSwitchChain();
   const { data: walletClient } = useWalletClient();
-  const publicClient = usePublicClient({ chainId: hardhat.id });
+  const publicClient = usePublicClient({ chainId: sepolia.id });
 
   const [mounted, setMounted] = useState(false);
   const [items, setItems] = useState([]);
@@ -157,6 +158,7 @@ export default function ShopPage() {
   const [listingItemId, setListingItemId] = useState("");
   const [listingNote, setListingNote] = useState("");
   const [tradeBusy, setTradeBusy] = useState("");
+  const [buyBusy, setBuyBusy] = useState("");
   const [offerSelections, setOfferSelections] = useState({});
   const [offerNotes, setOfferNotes] = useState({});
   const [err, setErr] = useState("");
@@ -313,6 +315,7 @@ export default function ShopPage() {
   }, [tradeHub.myListings, tradeHub.outgoingOffers]);
 
   async function buy(item) {
+    if (buyBusy) return;
     setErr("");
     setSuccess("");
 
@@ -322,7 +325,7 @@ export default function ShopPage() {
       setErr("Please connect wallet to buy items.");
       return;
     }
-    if (!walletClient || !publicClient) {
+    if (isEmbedded ? !smartClient : (!walletClient || !publicClient)) {
       setErr("Wallet is not ready.");
       return;
     }
@@ -343,28 +346,45 @@ export default function ShopPage() {
       return;
     }
 
+    setBuyBusy(item.id);
     try {
-      const targetChainId = Number(rewards.chainId || hardhat.id);
-      if (chainId !== targetChainId) {
+      const targetChainId = Number(rewards.chainId || sepolia.id);
+      if (!isEmbedded && chainId !== targetChainId) {
         await switchChainAsync({ chainId: targetChainId });
       }
 
       const amountWei = parseUnits(String(item.price), Number(rewards.decimals || 18));
-      const burnTxHash = await walletClient.writeContract({
-        account: walletClient.account,
-        address: rewards.contractAddress,
-        abi: greenCommuteTokenAbi,
-        functionName: "transfer",
-        args: [rewards.burnAddress, amountWei],
-        chain: hardhat,
-      });
-
-      const burnReceipt = await publicClient.waitForTransactionReceipt({
-        hash: burnTxHash,
-        confirmations: 1,
-      });
-      if (burnReceipt.status !== "success") {
-        throw new Error("Burn transaction reverted.");
+      let burnTxHash;
+      if (isEmbedded && smartClient) {
+        // Account Kit sendTransaction already waits for UserOp inclusion —
+        // the tx is already mined by the time we get the hash back.
+        burnTxHash = await smartClient.sendTransaction({
+          to: rewards.contractAddress,
+          data: encodeFunctionData({
+            abi: greenCommuteTokenAbi,
+            functionName: "transfer",
+            args: [rewards.burnAddress, amountWei],
+          }),
+          value: 0n,
+        });
+        // No receipt wait needed — tx is already included
+      } else {
+        burnTxHash = await walletClient.writeContract({
+          account: walletClient.account,
+          address: rewards.contractAddress,
+          abi: greenCommuteTokenAbi,
+          functionName: "transfer",
+          args: [rewards.burnAddress, amountWei],
+          chain: sepolia,
+        });
+        // confirmations: 0 = just wait for inclusion, skip extra block
+        const burnReceipt = await publicClient.waitForTransactionReceipt({
+          hash: burnTxHash,
+          confirmations: 0,
+        });
+        if (burnReceipt.status !== "success") {
+          throw new Error("Burn transaction reverted.");
+        }
       }
 
       const result = await fetchJson(`${API}/api/shop/purchase`, {
@@ -389,8 +409,8 @@ export default function ShopPage() {
       const next = addOwned(structuredClone(inv), item.id);
       saveInventory(addressKey, next);
       setInv(next);
-      await Promise.all([loadRewards(address), syncInventoryFromApi(address), loadTradeHub(address)]);
 
+      // Show success immediately, refresh in background
       setSuccess(
         result?.alreadyOwned
           ? `Already owned: ${item.name}`
@@ -398,9 +418,19 @@ export default function ShopPage() {
           ? `Purchased: ${item.name} | NFT #${result.nft.tokenId}`
           : `Purchased: ${item.name}`
       );
+      setBuyBusy("");
+
+      // Background refresh — don't await
+      Promise.all([loadRewards(address), syncInventoryFromApi(address), loadTradeHub(address)]).catch(() => {});
     } catch (e) {
       console.error("buy failed:", e);
-      setErr(String(e?.message || e));
+      // "replacement underpriced" means the bundler already has this UserOp in the mempool
+      // from an internal retry — the original tx likely went through. Suppress it.
+      if (!String(e?.message || e).toLowerCase().includes("replacement underpriced")) {
+        setErr(String(e?.message || e));
+      }
+    } finally {
+      setBuyBusy("");
     }
   }
 
@@ -517,7 +547,7 @@ export default function ShopPage() {
       setErr("Connect wallet to enable NFT trading.");
       return;
     }
-    if (!walletClient || !publicClient) {
+    if (isEmbedded ? !smartClient : (!walletClient || !publicClient)) {
       setErr("Wallet is not ready.");
       return;
     }
@@ -530,19 +560,32 @@ export default function ShopPage() {
     setErr("");
     setSuccess("");
     try {
-      const targetChainId = Number(tradeHub.cosmeticsChainId || rewards?.chainId || hardhat.id);
-      if (chainId !== targetChainId) {
+      const targetChainId = Number(tradeHub.cosmeticsChainId || rewards?.chainId || sepolia.id);
+      if (!isEmbedded && chainId !== targetChainId) {
         await switchChainAsync({ chainId: targetChainId });
       }
 
-      const hash = await walletClient.writeContract({
-        account: walletClient.account,
-        address: tradeHub.cosmeticsContractAddress,
-        abi: greenCommuteCosmeticsAbi,
-        functionName: "setApprovalForAll",
-        args: [tradeHub.tradeOperatorAddress, true],
-        chain: hardhat,
-      });
+      let hash;
+      if (isEmbedded && smartClient) {
+        hash = await smartClient.sendTransaction({
+          to: tradeHub.cosmeticsContractAddress,
+          data: encodeFunctionData({
+            abi: greenCommuteCosmeticsAbi,
+            functionName: "setApprovalForAll",
+            args: [tradeHub.tradeOperatorAddress, true],
+          }),
+          value: 0n,
+        });
+      } else {
+        hash = await walletClient.writeContract({
+          account: walletClient.account,
+          address: tradeHub.cosmeticsContractAddress,
+          abi: greenCommuteCosmeticsAbi,
+          functionName: "setApprovalForAll",
+          args: [tradeHub.tradeOperatorAddress, true],
+          chain: sepolia,
+        });
+      }
       const receipt = await publicClient.waitForTransactionReceipt({
         hash,
         confirmations: 1,
@@ -553,7 +596,9 @@ export default function ShopPage() {
       await loadTradeHub(address);
       setSuccess("NFT trade approval enabled.");
     } catch (e) {
-      setErr(String(e?.message || e));
+      if (!String(e?.message || e).toLowerCase().includes("replacement underpriced")) {
+        setErr(String(e?.message || e));
+      }
     } finally {
       setTradeBusy("");
     }
@@ -704,10 +749,10 @@ export default function ShopPage() {
 
                       <button
                         onClick={() => buy(it)}
-                        disabled={!inv || owned}
+                        disabled={!inv || owned || !!buyBusy}
                         className={owned ? "shop-buy-btn shop-buy-btn--owned" : "shop-buy-btn"}
                       >
-                        {owned ? "✓ Already owned" : "Buy"}
+                        {buyBusy === it.id ? "Buying…" : owned ? "✓ Already owned" : "Buy"}
                       </button>
                     </div>
                   );
