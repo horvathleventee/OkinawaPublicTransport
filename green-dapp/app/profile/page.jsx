@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { useAccount, useConnect, useDisconnect, useChainId } from "wagmi";
+import { useAccount, useDisconnect } from "wagmi";
+import { useLogout, useUser } from "@account-kit/react";
+import { useWallet } from "../../lib/useWallet";
 import Nav from "../components/Nav";
 import ClaimOnChainButton from "../../components/ClaimOnChainButton";
 import AvatarShowcase from "../components/AvatarShowcase";
@@ -53,10 +55,11 @@ async function fetchJson(url, options = {}) {
 }
 
 export default function ProfilePage() {
-  const { address, isConnected } = useAccount();
-  const chainId = useChainId();
-  const { connect, connectors, isPending } = useConnect();
+  const { address, isConnected, isEmbedded } = useWallet();
+  const { address: wagmiAddress } = useAccount();
+  const user = useUser();
   const { disconnect } = useDisconnect();
+  const { logout } = useLogout();
 
   const [mounted, setMounted] = useState(false);
   const [data, setData] = useState(null);
@@ -152,8 +155,23 @@ export default function ProfilePage() {
     if (mounted && isConnected && address) loadAll(address);
   }, [mounted, isConnected, address]);
 
+  function handleDisconnect() {
+    if (isEmbedded) {
+      logout();
+    } else {
+      disconnect();
+    }
+    setData(null); setClaimPreview(null); setClaims([]); setPurchases([]);
+    setAvatarLayout(null); setClaimAmount(""); setErr(""); setInfo("");
+  }
+
   const tokenSymbol = data?.token || "GCT";
-  const walletLabel = mounted ? (isConnected && address ? address : "Not connected") : "Loading wallet…";
+  // Prefer email for embedded wallet users, fallback to shortened address
+  const displayName = mounted
+    ? isConnected && address
+      ? (isEmbedded && user?.email) ? user.email : shortAddr(address)
+      : "Not connected"
+    : "Loading wallet…";
 
   const qrInviteUrl =
     mounted && isConnected && address && typeof window !== "undefined"
@@ -228,39 +246,42 @@ export default function ProfilePage() {
           <div className="profile-hero-address">
             {mounted && isConnected && address ? (
               <>
-                <span className="profile-hero-addr-short">{shortAddr(address)}</span>
-                <span className="profile-hero-addr-full mono">{address}</span>
+                <span className="profile-hero-addr-short">{displayName}</span>
+                {isEmbedded && user?.email ? (
+                  <span className="profile-hero-addr-full mono">{address}</span>
+                ) : (
+                  <span className="profile-hero-addr-full mono">{address}</span>
+                )}
               </>
             ) : (
               <span className="profile-hero-addr-short">Not connected</span>
             )}
-            <span className="profile-hero-chain">Chain {chainId}</span>
           </div>
 
           <div className="profile-hero-stats">
             <div className="profile-stat">
-              <div className="profile-stat-value">{data ? fmt(data.earnedTokens, 2) : "—"}</div>
+              <div className="profile-stat-value">{isConnected && data ? fmt(data.earnedTokens, 2) : "—"}</div>
               <div className="profile-stat-label">GCT earned</div>
             </div>
             <div className="profile-stat-divider" />
             <div className="profile-stat">
-              <div className="profile-stat-value">{data ? fmt(data.spendableTokensOnChain, 2) : "—"}</div>
+              <div className="profile-stat-value">{isConnected && data ? fmt(data.spendableTokensOnChain, 2) : "—"}</div>
               <div className="profile-stat-label">on-chain</div>
             </div>
             <div className="profile-stat-divider" />
             <div className="profile-stat">
-              <div className="profile-stat-value">{data ? fmt(data.eventsCount, 0) : "—"}</div>
+              <div className="profile-stat-value">{isConnected && data ? fmt(data.eventsCount, 0) : "—"}</div>
               <div className="profile-stat-label">trips</div>
             </div>
             <div className="profile-stat-divider" />
             <div className="profile-stat">
-              <div className="profile-stat-value">{data ? fmt(data.breakdown?.co2SavedKg, 1) : "—"}</div>
+              <div className="profile-stat-value">{isConnected && data ? fmt(data.breakdown?.co2SavedKg, 1) : "—"}</div>
               <div className="profile-stat-label">kg CO₂ saved</div>
             </div>
           </div>
 
           {/* Claimed progress bar */}
-          {data ? (
+          {isConnected && data ? (
             <div className="profile-progress-wrap">
               <div className="profile-progress-labels">
                 <span>Claimed {fmt(data.claimedTokens, 2)} {tokenSymbol}</span>
@@ -279,22 +300,16 @@ export default function ProfilePage() {
           ) : null}
 
           <div className="profile-hero-actions">
-            {!mounted ? null : !isConnected ? (
-              connectors.map((c) => (
-                <button key={c.id} onClick={() => connect({ connector: c })} disabled={isPending} style={btnStyle}>
-                  Connect {c.name}
-                </button>
-              ))
-            ) : (
+            {!mounted ? null : isConnected ? (
               <>
                 <button onClick={() => loadAll(address, { silent: true })} style={btnStyle}>
                   {refreshing ? "Refreshing…" : "Refresh"}
                 </button>
-                <button onClick={() => { disconnect(); setData(null); setClaimPreview(null); setClaims([]); setPurchases([]); setAvatarLayout(null); setClaimAmount(""); setErr(""); setInfo(""); }} style={btnStyle2}>
+                <button onClick={handleDisconnect} style={btnStyle2}>
                   Disconnect
                 </button>
               </>
-            )}
+            ) : null}
           </div>
 
           {err && <div className="error" style={{ marginTop: 10 }}>Error: {err}</div>}
