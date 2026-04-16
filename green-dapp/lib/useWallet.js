@@ -5,6 +5,9 @@ import { useAccount } from "wagmi";
 import { useUser, useSmartAccountClient } from "@account-kit/react";
 
 const POLICY_ID = process.env.NEXT_PUBLIC_ALCHEMY_GAS_POLICY_ID;
+const AA_ENABLED = ["1", "true", "yes"].includes(
+  String(process.env.NEXT_PUBLIC_AA_ENABLED || "").toLowerCase()
+);
 
 /**
  * Unified wallet hook — works for both:
@@ -19,13 +22,13 @@ export function useWallet() {
   useEffect(() => { setMounted(true); }, []);
 
   const wagmi = useAccount();
-  const user = useUser();
-
-  // Always call hook unconditionally (React rules)
-  const { client: smartAccountClient, isLoadingClient } = useSmartAccountClient({
-    type: "LightAccount",
-    policyId: POLICY_ID || undefined,
-  });
+  const user = AA_ENABLED ? useUser() : null;
+  const { client: smartAccountClient, isLoadingClient } = AA_ENABLED
+    ? useSmartAccountClient({
+        type: "LightAccount",
+        policyId: POLICY_ID || undefined,
+      })
+    : { client: null, isLoadingClient: false };
 
   // Don't return wallet state until client-side hydration is complete
   if (!mounted) {

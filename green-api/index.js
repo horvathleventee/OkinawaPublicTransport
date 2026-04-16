@@ -13,6 +13,14 @@ app.use(express.json());
 
 const PORT = Number(process.env.PORT || 4100);
 
+app.get("/health", (_req, res) => {
+  res.status(200).json({
+    ok: true,
+    service: "green-api",
+    time: new Date().toISOString(),
+  });
+});
+
 // ----------------------------------------------------
 // CONFIG / CONSTANTS
 // ----------------------------------------------------
