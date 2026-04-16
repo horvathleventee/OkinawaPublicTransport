@@ -597,21 +597,23 @@ code{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liber
 
 .nav-links {
   display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
+  flex-wrap: nowrap;
+  gap: 8px;
   justify-content: flex-end;
   align-items: center;
+  min-width: 0;
 }
 
 .nav-link {
-  padding: 8px 12px;
+  padding: 7px 10px;
   border-radius: 999px;
   border: 1px solid var(--border);
   background: var(--nav-link-bg);
   color: var(--nav-link-text);
   text-decoration: none;
   font-weight: 800;
-  font-size: 13px;
+  font-size: 12px;
+  white-space: nowrap;
   transition: transform 120ms ease, background 120ms ease, border-color 120ms ease;
 }
 .nav-link:hover { background: color-mix(in srgb, var(--nav-link-bg) 70%, var(--card2) 30%); }
