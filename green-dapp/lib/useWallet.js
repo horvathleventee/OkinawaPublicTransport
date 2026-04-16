@@ -1,38 +1,44 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useAccount } from "wagmi";
-import { useAuthModal, useLogout, useSmartAccountClient, useUser } from "@account-kit/react";
+import { useEffect, useState } from "react";
+import { useAccount as useWagmiAccount } from "wagmi";
+import {
+  useAccount as useAlchemyAccount,
+  useAuthModal,
+  useLogout,
+  useSignerStatus,
+  useSmartWalletClient,
+  useUser,
+} from "@account-kit/react";
 
-const POLICY_ID = process.env.NEXT_PUBLIC_ALCHEMY_GAS_POLICY_ID;
 const AA_ENABLED = ["1", "true", "yes"].includes(
   String(process.env.NEXT_PUBLIC_AA_ENABLED || "").toLowerCase()
 );
 
 /**
- * Unified wallet hook — works for both:
- *  - injected wallets (MetaMask etc.) via wagmi
- *  - Account Kit embedded wallets (email / passkey / social) via @account-kit/react
- *
- * Returns { address, isConnected, isEmbedded, smartClient, smartAddress }
- * For embedded wallets, address = smart account address (gasless LightAccount)
+ * Unified wallet hook.
+ * - EOA / injected wallet comes from wagmi
+ * - Embedded / Account Kit wallet comes from Account Kit hooks
  */
 export function useWallet() {
   const [mounted, setMounted] = useState(false);
-  useEffect(() => { setMounted(true); }, []);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
-  const wagmi = useAccount();
+  const wagmi = useWagmiAccount();
+
   const authModal = AA_ENABLED ? useAuthModal() : { openAuthModal: () => {} };
-  const logoutApi = AA_ENABLED ? useLogout() : { logout: () => Promise.resolve() };
+  const logoutApi = AA_ENABLED ? useLogout() : { logout: async () => {} };
+  const signerStatus = AA_ENABLED
+    ? useSignerStatus()
+    : { isConnected: false, isAuthenticating: false, isInitializing: false };
   const user = AA_ENABLED ? useUser() : null;
-  const { client: smartAccountClient, isLoadingClient } = AA_ENABLED
-    ? useSmartAccountClient({
-        type: "LightAccount",
-        policyId: POLICY_ID || undefined,
-      })
-    : { client: null, isLoadingClient: false };
+  const alchemyAccount = AA_ENABLED
+    ? useAlchemyAccount({ type: "LightAccount", skipCreate: !signerStatus.isConnected })
+    : { address: undefined, isLoadingAccount: false };
+  const smartWalletClient = AA_ENABLED ? useSmartWalletClient({}) : undefined;
 
-  // Don't return wallet state until client-side hydration is complete
   if (!mounted) {
     return {
       address: undefined,
@@ -44,10 +50,10 @@ export function useWallet() {
       embeddedEmail: null,
       openEmbeddedAuthModal: () => {},
       logoutEmbedded: async () => {},
+      aaEnabled: AA_ENABLED,
     };
   }
 
-  // Injected wallet takes priority
   if (wagmi.isConnected && wagmi.address) {
     return {
       address: wagmi.address,
@@ -55,26 +61,27 @@ export function useWallet() {
       isEmbedded: false,
       smartClient: null,
       smartAddress: null,
+      isLoadingWallet: false,
       embeddedEmail: null,
       openEmbeddedAuthModal: authModal.openAuthModal,
       logoutEmbedded: logoutApi.logout,
+      aaEnabled: AA_ENABLED,
     };
   }
 
-  // Account Kit embedded wallet — wait for smart account to initialise
-  if (user) {
-    const smartAddress = smartAccountClient?.account?.address ?? null;
+  if (AA_ENABLED && signerStatus.isConnected) {
+    const smartAddress = alchemyAccount?.address ?? null;
     return {
-      address: smartAddress ?? null,   // null while loading → components wait
-      signerAddress: user.address,
-      isConnected: !!smartAddress,
+      address: smartAddress,
+      isConnected: Boolean(smartAddress),
       isEmbedded: true,
-      smartClient: smartAccountClient ?? null,
+      smartClient: smartWalletClient ?? null,
       smartAddress,
-      isLoadingWallet: isLoadingClient || !smartAddress,
-      embeddedEmail: user.email ?? null,
+      isLoadingWallet: Boolean(alchemyAccount?.isLoadingAccount && !smartAddress),
+      embeddedEmail: user?.email ?? null,
       openEmbeddedAuthModal: authModal.openAuthModal,
       logoutEmbedded: logoutApi.logout,
+      aaEnabled: AA_ENABLED,
     };
   }
 
@@ -84,8 +91,10 @@ export function useWallet() {
     isEmbedded: false,
     smartClient: null,
     smartAddress: null,
+    isLoadingWallet: false,
     embeddedEmail: null,
     openEmbeddedAuthModal: authModal.openAuthModal,
     logoutEmbedded: logoutApi.logout,
+    aaEnabled: AA_ENABLED,
   };
 }

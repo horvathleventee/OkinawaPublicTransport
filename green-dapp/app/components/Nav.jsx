@@ -37,7 +37,7 @@ export default function Nav() {
   const { isConnected, address } = useAccount();
   const { connectAsync } = useConnect();
   const { disconnect } = useDisconnect();
-  const { isEmbedded, embeddedEmail, openEmbeddedAuthModal, logoutEmbedded } = useWallet();
+  const { aaEnabled, isEmbedded, embeddedEmail, openEmbeddedAuthModal, logoutEmbedded } = useWallet();
   const [theme, setTheme] = useState("dark");
   const [chatUnread, setChatUnread] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -123,7 +123,7 @@ export default function Nav() {
   }
 
   async function handleConnect() {
-    if (isEmbedded) {
+    if (aaEnabled) {
       openEmbeddedAuthModal();
       return;
     }
