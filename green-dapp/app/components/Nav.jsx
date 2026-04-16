@@ -162,8 +162,8 @@ export default function Nav() {
             title="Disconnect"
             onClick={() => logout()}
           >
-            <span>{displayLabel}</span>
-            <span className="nav-connect-close">✕</span>
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>{displayLabel}</span>
+            <span className="nav-connect-close" style={{ flexShrink: 0 }}>✕</span>
           </button>
         ) : (
           <button

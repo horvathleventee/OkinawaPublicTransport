@@ -662,6 +662,10 @@ code{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liber
   font-size: 13px;
   cursor: pointer;
   white-space: nowrap;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 0;
   transition: transform 120ms ease, background 120ms ease;
 }
 .nav-connect-btn:hover {
@@ -675,6 +679,7 @@ code{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liber
   border-color: rgba(16,185,129,.4);
   background: rgba(16,185,129,.10);
   color: rgba(16,185,129,.95);
+  max-width: 200px;
 }
 .nav-connect-btn--connected:hover {
   background: rgba(16,185,129,.20);
