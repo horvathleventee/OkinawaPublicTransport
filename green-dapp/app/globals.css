@@ -790,6 +790,36 @@ code{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liber
   .shop-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+  
+  /* Avatar mobile responsive */
+  .avatar-mobile .grid > .card {
+    grid-column: span 12 !important;
+    max-width: none !important;
+    max-height: none !important;
+  }
+  
+  /* Chat mobile responsive */
+  .chat-mobile .grid > .card {
+    grid-column: span 12 !important;
+  }
+  .chat-mobile .conv-card {
+    padding: 12px;
+  }
+  .chat-mobile .conv-preview {
+    max-width: 100%;
+  }
+  
+  /* Community mobile responsive */
+  .community-mobile .grid > .card {
+    grid-column: span 12 !important;
+  }
+  .community-mobile .shop-item[style*="span 2"] {
+    grid-column: span 1 !important;
+  }
+  .community-tab-btn {
+    padding: 8px 12px;
+    font-size: 13px;
+  }
 }
 
 /* ── Very small screens (≤ 520px) ───────────────────────────── */

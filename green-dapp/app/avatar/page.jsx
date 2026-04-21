@@ -696,15 +696,6 @@ export default function AvatarPage() {
 
   return (
     <div className="shell avatar-mobile">
-      <style>{`
-        @media (max-width: 768px) {
-          .avatar-mobile .grid > .card {
-            grid-column: span 12 !important;
-            max-width: none !important;
-            max-height: none !important;
-          }
-        }
-      `}</style>
       <Nav />
 
       <div className="topbar">

@@ -291,19 +291,6 @@ function ChatPageInner() {
 
   return (
     <div className="shell chat-mobile">
-      <style>{`
-        @media (max-width: 768px) {
-          .chat-mobile .grid > .card {
-            grid-column: span 12 !important;
-          }
-          .chat-mobile .conv-card {
-            padding: 12px;
-          }
-          .chat-mobile .conv-preview {
-            max-width: 100%;
-          }
-        }
-      `}</style>
       <Nav />
 
       <div className="topbar">
