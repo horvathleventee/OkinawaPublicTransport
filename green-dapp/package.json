@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@aa-sdk/core": "^4.87.0",
+    "@wagmi/core": "^2.0.0",
     "@account-kit/core": "^4.87.0",
     "@account-kit/infra": "^4.87.0",
     "@account-kit/react": "^4.87.1",
