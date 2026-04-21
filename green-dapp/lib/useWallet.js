@@ -7,7 +7,7 @@ import {
   useAuthModal,
   useLogout,
   useSignerStatus,
-  useSmartWalletClient,
+  useSmartAccountClient,
   useUser,
 } from "@account-kit/react";
 
@@ -37,7 +37,7 @@ export function useWallet() {
   const alchemyAccount = AA_ENABLED
     ? useAlchemyAccount({ type: "LightAccount", skipCreate: !signerStatus.isConnected })
     : { address: undefined, isLoadingAccount: false };
-  const smartWalletClient = AA_ENABLED ? useSmartWalletClient({ type: "LightAccount" })?.client ?? null : null;
+  const { client: smartWalletClient } = AA_ENABLED ? useSmartAccountClient({ type: "LightAccount" }) : { client: null };
 
   if (!mounted) {
     return {
