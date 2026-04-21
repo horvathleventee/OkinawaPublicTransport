@@ -89,13 +89,6 @@ async function fetchInventoryFromApi(walletAddress) {
   });
 }
 
-async function syncCosmeticsFromApi(walletAddress) {
-  return fetchJson(`${API}/api/users/${walletAddress}/cosmetics/sync`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-  });
-}
-
 async function saveLayoutToApi(walletAddress, inv) {
   return fetchJson(`${API}/api/avatar-layout`, {
     method: "POST",
@@ -210,7 +203,6 @@ export default function AvatarPage() {
       }
 
       try {
-        const syncJson = await syncCosmeticsFromApi(address).catch(() => null);
         const [layoutJson, inventoryJson] = await Promise.all([
           fetchLayoutFromApi(address),
           fetchInventoryFromApi(address),
@@ -219,11 +211,9 @@ export default function AvatarPage() {
 
         const ownedFromApi = Array.isArray(inventoryJson?.ownedItemIds)
           ? inventoryJson.ownedItemIds
-          : Array.isArray(syncJson?.ownedItemIds)
-          ? syncJson.ownedItemIds
           : [];
         setCosmeticsConfig(
-          inventoryJson?.cosmetics || syncJson?.cosmetics || {
+          inventoryJson?.cosmetics || {
             configured: false,
             contractAddress: null,
             chainId: null,

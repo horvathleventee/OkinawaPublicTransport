@@ -126,13 +126,6 @@ async function fetchJson(url, options = {}) {
   return json;
 }
 
-async function syncCosmetics(addr) {
-  return fetchJson(`${API}/api/users/${addr}/cosmetics/sync`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-  });
-}
-
 export default function ShopPage() {
   const { address, isConnected, isEmbedded, smartClient } = useWallet();
   const chainId = useChainId();
@@ -188,7 +181,6 @@ export default function ShopPage() {
   }
 
   async function syncInventoryFromApi(addr) {
-    await syncCosmetics(addr).catch(() => null);
     const json = await fetchJson(`${API}/api/users/${addr}/inventory`, { cache: "no-store" });
 
     const local = loadInventory(addressKey);
