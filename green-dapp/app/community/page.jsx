@@ -517,8 +517,23 @@ function CommunityPageInner() {
   }
 
   return (
-    <div className="shell">
-      <Nav />
+    <>
+      <style>{`
+        @media (max-width: 768px) {
+          .community-mobile .grid > .card {
+            grid-column: span 12 !important;
+          }
+          .community-mobile .shop-item[style*="span 2"] {
+            grid-column: span 1 !important;
+          }
+          .community-tab-btn {
+            padding: 8px 12px;
+            font-size: 13px;
+          }
+        }
+      `}</style>
+      <div className="shell community-mobile">
+        <Nav />
 
       <div className="topbar">
         <div className="title">
@@ -1063,7 +1078,7 @@ function CommunityPageInner() {
           </div>
         ) : null}
       </div>
-    </div>
+    </>
   );
 }
 

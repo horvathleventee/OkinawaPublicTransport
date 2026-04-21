@@ -695,8 +695,18 @@ export default function AvatarPage() {
     : null;
 
   return (
-    <div className="shell">
-      <Nav />
+    <>
+      <style>{`
+        @media (max-width: 768px) {
+          .avatar-mobile .grid > .card {
+            grid-column: span 12 !important;
+            max-width: none !important;
+            max-height: none !important;
+          }
+        }
+      `}</style>
+      <div className="shell avatar-mobile">
+        <Nav />
 
       <div className="topbar">
         <div className="title">
@@ -1172,9 +1182,9 @@ export default function AvatarPage() {
           </div>
         </div>
 	      </div>
-	    </div>
-	  );
-}
+      </div>
+    </>
+  );
 
 function Layer({ slot, src, item, getOffset, zIndex = 1 }) {
   if (!src) return null;

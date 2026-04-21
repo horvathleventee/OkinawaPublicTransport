@@ -1086,6 +1086,31 @@ code{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liber
   .profile-hero { padding: 16px; gap: 16px; }
   .profile-stat { padding: 0 12px; }
   .profile-stat-value { font-size: 17px; }
+  
+  /* Activity feed mobile stacking */
+  .activity-item {
+    grid-template-columns: 16px 1fr;
+    gap: 10px;
+    padding: 10px 0;
+  }
+  .activity-right {
+    grid-column: 2;
+    align-items: flex-start;
+    margin-top: 6px;
+  }
+  .activity-date {
+    font-size: 10px;
+  }
+  
+  /* Profile claim mobile */
+  .profile-claim-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .profile-claim-form input,
+  .profile-claim-form button {
+    width: 100%;
+  }
 }
 
 /* ─── Shop stat strip ─────────────────────────────────────────────────────── */
