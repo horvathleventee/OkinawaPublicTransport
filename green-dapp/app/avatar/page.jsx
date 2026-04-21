@@ -1171,7 +1171,6 @@ export default function AvatarPage() {
             </div>
           </div>
         </div>
-	      </div>
       </div>
     </div>
   );
