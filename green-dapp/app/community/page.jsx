@@ -1081,7 +1081,6 @@ function CommunityPageInner() {
     </>
   );
 }
-}
 
 function SummaryMini({ title, value, hint }) {
   return (

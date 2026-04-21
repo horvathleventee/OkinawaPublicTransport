@@ -559,7 +559,6 @@ function ChatPageInner() {
     </>
   );
 }
-}
 
 export default function ChatPage() {
   return (
