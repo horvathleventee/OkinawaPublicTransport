@@ -517,7 +517,7 @@ function CommunityPageInner() {
   }
 
   return (
-    <>
+    <div className="shell community-mobile">
       <style>{`
         @media (max-width: 768px) {
           .community-mobile .grid > .card {
@@ -532,7 +532,6 @@ function CommunityPageInner() {
           }
         }
       `}</style>
-      <div className="shell community-mobile">
         <Nav />
 
       <div className="topbar">
@@ -1078,7 +1077,7 @@ function CommunityPageInner() {
           </div>
         ) : null}
       </div>
-    </>
+    </div>
   );
 }
 

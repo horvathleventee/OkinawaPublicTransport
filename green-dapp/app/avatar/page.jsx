@@ -695,7 +695,7 @@ export default function AvatarPage() {
     : null;
 
   return (
-    <>
+    <div className="shell avatar-mobile">
       <style>{`
         @media (max-width: 768px) {
           .avatar-mobile .grid > .card {
@@ -705,8 +705,7 @@ export default function AvatarPage() {
           }
         }
       `}</style>
-      <div className="shell avatar-mobile">
-        <Nav />
+      <Nav />
 
       <div className="topbar">
         <div className="title">
@@ -1183,7 +1182,7 @@ export default function AvatarPage() {
         </div>
 	      </div>
       </div>
-    </>
+    </div>
   );
 }
 

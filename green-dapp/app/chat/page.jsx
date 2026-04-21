@@ -290,7 +290,7 @@ function ChatPageInner() {
   }
 
   return (
-    <>
+    <div className="shell chat-mobile">
       <style>{`
         @media (max-width: 768px) {
           .chat-mobile .grid > .card {
@@ -304,8 +304,7 @@ function ChatPageInner() {
           }
         }
       `}</style>
-      <div className="shell chat-mobile">
-        <Nav />
+      <Nav />
 
       <div className="topbar">
         <div className="title">
@@ -556,7 +555,7 @@ function ChatPageInner() {
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }
 
