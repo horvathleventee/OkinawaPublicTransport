@@ -7,14 +7,17 @@ export function createAccountKitQueryClient() {
 }
 
 export function createAccountKitRuntimeConfig() {
+  const config = {
+    transport: alchemy({
+      apiKey: process.env.NEXT_PUBLIC_ALCHEMY_API_KEY,
+    }),
+    chain: sepolia,
+    enablePopupOauth: true,
+  };
+  const policyId = process.env.NEXT_PUBLIC_ALCHEMY_GAS_POLICY_ID;
+  if (policyId) config.policyId = policyId;
   return createConfig(
-    {
-      transport: alchemy({
-        apiKey: process.env.NEXT_PUBLIC_ALCHEMY_API_KEY,
-      }),
-      chain: sepolia,
-      enablePopupOauth: true,
-    },
+    config,
     {
       auth: {
         sections: [

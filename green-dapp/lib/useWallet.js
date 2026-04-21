@@ -37,7 +37,7 @@ export function useWallet() {
   const alchemyAccount = AA_ENABLED
     ? useAlchemyAccount({ type: "LightAccount", skipCreate: !signerStatus.isConnected })
     : { address: undefined, isLoadingAccount: false };
-  const { client: smartWalletClient } = AA_ENABLED ? useSmartAccountClient({ type: "LightAccount", policyId: process.env.NEXT_PUBLIC_ALCHEMY_GAS_POLICY_ID }) : { client: null };
+  const { client: smartWalletClient } = AA_ENABLED ? useSmartAccountClient({ type: "LightAccount" }) : { client: null };
 
   if (!mounted) {
     return {
