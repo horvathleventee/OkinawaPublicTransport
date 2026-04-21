@@ -530,6 +530,11 @@ export default function ShopPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ walletAddress: address }),
       });
+
+      // Trade accept can change actual NFT ownership on-chain, so refresh
+      // the inventory snapshot as well, not just the trade hub cards.
+      await syncInventoryFromApi(address).catch(() => null);
+
       setTradeHub({
         openListings: json?.openListings || [],
         myListings: json?.myListings || [],
