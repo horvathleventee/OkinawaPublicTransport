@@ -28,9 +28,11 @@ import {
 } from "../lib/avatarConfig";
 
 const API =
-  process.env.NEXT_PUBLIC_GREEN_API_URL ||
-  process.env.NEXT_PUBLIC_API_URL ||
-  API_BASE;
+  typeof window !== "undefined"
+    ? "/api-proxy"
+    : process.env.NEXT_PUBLIC_GREEN_API_URL ||
+      process.env.NEXT_PUBLIC_API_URL ||
+      API_BASE;
 
 function normalizeLayoutForApi(inv) {
   return {

@@ -20,9 +20,11 @@ import { greenCommuteTokenAbi } from "../../lib/greenCommuteTokenAbi";
 import { greenCommuteCosmeticsAbi } from "../../lib/greenCommuteCosmeticsAbi";
 
 const API =
-  process.env.NEXT_PUBLIC_GREEN_API_URL ||
-  process.env.NEXT_PUBLIC_API_URL ||
-  "http://localhost:4100";
+  typeof window !== "undefined"
+    ? "/api-proxy"
+    : process.env.NEXT_PUBLIC_GREEN_API_URL ||
+      process.env.NEXT_PUBLIC_API_URL ||
+      "http://localhost:4100";
 
 function groupBySlot(items) {
   const map = createEmptySlotMap();

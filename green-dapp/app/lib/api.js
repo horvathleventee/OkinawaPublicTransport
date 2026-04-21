@@ -1,4 +1,7 @@
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4100";
+const API =
+  typeof window !== "undefined"
+    ? "/api-proxy"
+    : process.env.NEXT_PUBLIC_API_URL || "http://localhost:4100";
 
 export { API };
 

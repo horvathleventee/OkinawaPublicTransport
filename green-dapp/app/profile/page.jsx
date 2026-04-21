@@ -9,9 +9,11 @@ import ClaimOnChainButton from "../../components/ClaimOnChainButton";
 import AvatarShowcase from "../components/AvatarShowcase";
 
 const API =
-  process.env.NEXT_PUBLIC_GREEN_API_URL ||
-  process.env.NEXT_PUBLIC_API_URL ||
-  "http://localhost:4100";
+  typeof window !== "undefined"
+    ? "/api-proxy"
+    : process.env.NEXT_PUBLIC_GREEN_API_URL ||
+      process.env.NEXT_PUBLIC_API_URL ||
+      "http://localhost:4100";
 
 function shortAddr(a) {
   if (!a) return "";
