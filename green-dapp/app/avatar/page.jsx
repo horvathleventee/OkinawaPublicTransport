@@ -1185,6 +1185,7 @@ export default function AvatarPage() {
       </div>
     </>
   );
+}
 
 function Layer({ slot, src, item, getOffset, zIndex = 1 }) {
   if (!src) return null;
