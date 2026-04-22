@@ -885,6 +885,30 @@ code{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liber
   /* avatar wardrobe tighter */
   .shop-item { padding: 10px; }
   .shop-img { height: 100px; }
+  .shop-item,
+  .shop-item > div,
+  .shop-item > div > div {
+    min-width: 0;
+  }
+  .shop-item > div:nth-child(2) {
+    align-items: flex-start;
+    gap: 8px !important;
+  }
+  .shop-item > div:nth-child(2) > div:first-child,
+  .shop-item > div:nth-child(2) > div:last-child {
+    flex: 1 1 0;
+  }
+  .shop-item > div:nth-child(2) > div:last-child {
+    text-align: right !important;
+  }
+  .shop-item > div:nth-child(2) > div:first-child > div:first-child {
+    font-size: 12px;
+    line-height: 1.25;
+    word-break: break-word;
+  }
+  .shop-buy-btn {
+    width: 100%;
+  }
   .nav {
     gap: 10px;
   }
