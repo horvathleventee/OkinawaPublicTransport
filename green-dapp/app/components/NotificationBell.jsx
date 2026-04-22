@@ -6,13 +6,13 @@ import { useWallet } from "../../lib/useWallet";
 import { API } from "../lib/api";
 
 const TYPE_ROUTES = {
-  friend_request:  "/community?section=social",
-  group_invite:    "/community?section=social",
+  friend_request: "/community?section=social",
+  group_invite: "/community?section=social",
   group_challenge: "/community?section=groups",
-  crown_claimed:   "/community?section=groups",
-  trade_offer:     "/shop",
-  trade_accepted:  "/shop",
-  trade_rejected:  "/shop",
+  crown_claimed: "/community?section=groups",
+  trade_offer: "/shop",
+  trade_accepted: "/shop",
+  trade_rejected: "/shop",
 };
 
 function timeAgo(isoString) {
@@ -30,17 +30,22 @@ function timeAgo(isoString) {
   return `${d}d ago`;
 }
 
-// localStorage key — per-wallet so it doesn't bleed between accounts
 function storageKey(address) {
   return `gc_notifs_seen_${String(address || "").toLowerCase()}`;
 }
 
 function getLastSeenId(address) {
-  try { return Number(localStorage.getItem(storageKey(address)) || 0); } catch { return 0; }
+  try {
+    return Number(localStorage.getItem(storageKey(address)) || 0);
+  } catch {
+    return 0;
+  }
 }
 
 function setLastSeenId(address, id) {
-  try { localStorage.setItem(storageKey(address), String(id)); } catch {}
+  try {
+    localStorage.setItem(storageKey(address), String(id));
+  } catch {}
 }
 
 export default function NotificationBell() {
@@ -54,11 +59,8 @@ export default function NotificationBell() {
   const [seenCutoffId, setSeenCutoffId] = useState(0);
   const dropdownRef = useRef(null);
   const pollRef = useRef(null);
-  // The highest notification ID the user has "seen" (dropdown was opened).
-  // Persisted in localStorage so it survives page navigations.
   const lastSeenId = useRef(0);
 
-  // On mount: restore lastSeenId from localStorage
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => setMounted(true));
     return () => window.cancelAnimationFrame(frame);
@@ -87,6 +89,7 @@ export default function NotificationBell() {
       setUnread(0);
       return;
     }
+
     try {
       const res = await fetch(`${API}/api/users/${address}/notifications?limit=20`, {
         cache: "no-store",
@@ -101,7 +104,6 @@ export default function NotificationBell() {
     }
   }, [isConnected, address]);
 
-  // Poll every 15s
   useEffect(() => {
     const start = window.setTimeout(() => {
       fetchNotifications();
@@ -113,14 +115,15 @@ export default function NotificationBell() {
     };
   }, [fetchNotifications]);
 
-  // Close dropdown on outside click
   useEffect(() => {
     if (!open) return;
+
     function handleOutside(e) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
         setOpen(false);
       }
     }
+
     document.addEventListener("mousedown", handleOutside);
     return () => document.removeEventListener("mousedown", handleOutside);
   }, [open]);
@@ -132,31 +135,44 @@ export default function NotificationBell() {
     setSeenCutoffId(maxId);
     setLastSeenId(address, maxId);
     setUnread(0);
-    // Best-effort server sync — fire and forget
     fetch(`${API}/api/users/${address}/notifications/read-all`, { method: "PATCH" }).catch(() => {});
   }
 
   async function handleBellClick() {
     const next = !open;
     setOpen(next);
-    if (next) {
-      // Mark as seen as soon as the user opens the dropdown — regardless of unread count
-      if (address && notifications.length > 0) {
-        const maxId = Math.max(...notifications.map((n) => n.id));
-        if (maxId > lastSeenId.current) {
-          lastSeenId.current = maxId;
-          setSeenCutoffId(maxId);
-          setLastSeenId(address, maxId);
-          setUnread(0);
-          fetch(`${API}/api/users/${address}/notifications/read-all`, { method: "PATCH" }).catch(() => {});
-        }
+    if (next && address && notifications.length > 0) {
+      const maxId = Math.max(...notifications.map((n) => n.id));
+      if (maxId > lastSeenId.current) {
+        lastSeenId.current = maxId;
+        setSeenCutoffId(maxId);
+        setLastSeenId(address, maxId);
+        setUnread(0);
+        fetch(`${API}/api/users/${address}/notifications/read-all`, { method: "PATCH" }).catch(() => {});
       }
+    }
+  }
+
+  async function deleteNotification(notifId) {
+    if (!address || !Number.isFinite(Number(notifId))) return;
+
+    const deletedWasUnread = notifications.some((n) => n.id === notifId && n.id > seenCutoffId);
+
+    try {
+      await fetch(`${API}/api/users/${address}/notifications/${notifId}`, {
+        method: "DELETE",
+      });
+      setNotifications((prev) => prev.filter((n) => n.id !== notifId));
+      if (deletedWasUnread) {
+        setUnread((prev) => Math.max(0, prev - 1));
+      }
+    } catch {
+      // silently ignore
     }
   }
 
   function handleNotifClick(notif) {
     setOpen(false);
-    // Ensure this notif's id is covered by lastSeenId
     if (notif.id > lastSeenId.current) {
       lastSeenId.current = notif.id;
       setSeenCutoffId(notif.id);
@@ -164,7 +180,7 @@ export default function NotificationBell() {
       setUnread((prev) => Math.max(0, prev - 1));
       fetch(`${API}/api/users/${address}/notifications/${notif.id}/read`, { method: "PATCH" }).catch(() => {});
     }
-    const route = TYPE_ROUTES[notif.type] ?? TYPE_ROUTES[notif.ref_type] ?? "/community";
+    const route = TYPE_ROUTES[notif.type] ?? TYPE_ROUTES[notif.refType] ?? "/community";
     router.push(route);
   }
 
@@ -184,57 +200,61 @@ export default function NotificationBell() {
 
   return (
     <div ref={dropdownRef} style={containerStyle}>
-      {/* Bell button */}
       <button
         type="button"
         onClick={handleBellClick}
-        title="Értesítések"
+        title="Notifications"
         style={bellBtnStyle}
         className="nav-link"
       >
         <BellIcon />
-        {unread > 0 && (
-          <span style={badgeStyle}>{unread > 99 ? "99+" : unread}</span>
-        )}
+        {unread > 0 && <span style={badgeStyle}>{unread > 99 ? "99+" : unread}</span>}
       </button>
 
-      {/* Dropdown */}
       {open && (
         <div style={resolvedDropdownStyle}>
           <div style={dropdownHeaderStyle}>
-            <span style={{ fontWeight: 700, fontSize: 14 }}>Értesítések</span>
+            <span style={{ fontWeight: 700, fontSize: 14 }}>Notifications</span>
             {notifications.length > 0 && (
               <button type="button" onClick={markAllSeen} style={markAllBtnStyle}>
-                Mind olvasott
+                Mark all read
               </button>
             )}
           </div>
 
           <div style={listStyle}>
             {notifications.length === 0 ? (
-              <div style={emptyStyle}>Nincsenek értesítések</div>
+              <div style={emptyStyle}>No notifications</div>
             ) : (
               notifications.map((n) => {
                 const isSeen = n.id <= seenCutoffId;
                 return (
-                  <button
+                  <div
                     key={n.id}
-                    type="button"
-                    onClick={() => handleNotifClick(n)}
                     style={{
-                      ...notifItemStyle,
-                      background: isSeen
-                        ? "rgba(255,255,255,.03)"
-                        : "rgba(124,58,237,.12)",
-                      borderLeft: isSeen
-                        ? "3px solid transparent"
-                        : "3px solid var(--a1)",
+                      ...notifRowStyle,
+                      background: isSeen ? "rgba(255,255,255,.03)" : "rgba(124,58,237,.12)",
+                      borderLeft: isSeen ? "3px solid transparent" : "3px solid var(--a1)",
                     }}
                   >
-                    <div style={notifTitleStyle}>{n.title}</div>
-                  {n.body && <div style={notifBodyStyle}>{n.body}</div>}
-                  <div style={notifTimeStyle}>{timeAgo(n.created_at)}</div>
-                  </button>
+                    <button type="button" onClick={() => handleNotifClick(n)} style={notifItemStyle}>
+                      <div style={notifTitleStyle}>{n.title}</div>
+                      {n.body ? <div style={notifBodyStyle}>{n.body}</div> : null}
+                      <div style={notifTimeStyle}>{timeAgo(n.createdAt)}</div>
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Delete notification"
+                      title="Delete notification"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteNotification(n.id);
+                      }}
+                      style={deleteBtnStyle}
+                    >
+                      ×
+                    </button>
+                  </div>
                 );
               })
             )}
@@ -263,7 +283,6 @@ function BellIcon() {
   );
 }
 
-// Styles
 const containerStyle = {
   position: "relative",
   display: "inline-flex",
@@ -349,14 +368,19 @@ const emptyStyle = {
   fontSize: 13,
 };
 
+const notifRowStyle = {
+  position: "relative",
+  display: "block",
+  borderBottom: "1px solid var(--border)",
+};
+
 const notifItemStyle = {
   display: "block",
   width: "100%",
-  padding: "12px 16px",
+  padding: "12px 40px 12px 16px",
   textAlign: "left",
   background: "none",
   border: "none",
-  borderBottom: "1px solid var(--border)",
   cursor: "pointer",
   transition: "background .15s",
   color: "var(--text)",
@@ -378,4 +402,23 @@ const notifBodyStyle = {
 const notifTimeStyle = {
   fontSize: 11,
   color: "var(--muted2)",
+};
+
+const deleteBtnStyle = {
+  position: "absolute",
+  top: 8,
+  right: 8,
+  width: 24,
+  height: 24,
+  borderRadius: 999,
+  border: "1px solid rgba(255,255,255,.1)",
+  background: "rgba(255,255,255,.06)",
+  color: "var(--muted)",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  cursor: "pointer",
+  fontSize: 15,
+  lineHeight: 1,
+  padding: 0,
 };

@@ -5982,6 +5982,31 @@ app.patch("/api/users/:wallet/notifications/:id/read", async (req, res) => {
   }
 });
 
+app.delete("/api/users/:wallet/notifications/:id", async (req, res) => {
+  try {
+    const wallet = normalizeWalletAddress(req.params.wallet);
+    const id = Number(req.params.id);
+    if (!wallet || wallet.length < 6 || !Number.isFinite(id) || id <= 0) {
+      return res.status(400).json({ error: "invalid params" });
+    }
+
+    const result = await db.query(
+      `DELETE FROM notifications WHERE id = ? AND wallet_address = ? LIMIT 1`,
+      [id, wallet]
+    );
+
+    res.json({
+      ok: true,
+      walletAddress: wallet,
+      id,
+      deleted: Number(result?.affectedRows || 0) > 0,
+    });
+  } catch (e) {
+    console.error("DELETE /api/users/:wallet/notifications/:id error:", e);
+    res.status(500).json({ error: "Failed to delete notification", details: e?.message || String(e) });
+  }
+});
+
 // ----------------------------------------------------
 // ADMIN: seed events for a wallet
 // ----------------------------------------------------
