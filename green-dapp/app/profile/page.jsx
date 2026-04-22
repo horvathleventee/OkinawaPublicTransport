@@ -318,12 +318,15 @@ export default function ProfilePage() {
 
         {mounted && isConnected && address ? (
           <div className="profile-hero-qr">
-            <div className="profile-qr-label">Friend QR</div>
+            <div className="profile-hero-qr-meta">
+              <div className="profile-qr-label">Friend QR</div>
+              <div className="small">Open this from another phone to add this wallet faster.</div>
+              <button onClick={copyQrInviteUrl} style={{ ...btnStyle, fontSize: 12, padding: "7px 12px", marginTop: 8 }}>
+                Copy invite link
+              </button>
+              {qrMessage ? <div className="small" style={{ marginTop: 6 }}>{qrMessage}</div> : null}
+            </div>
             <img src={qrImageUrl} alt="Friend invite QR" className="profile-qr-img" />
-            <button onClick={copyQrInviteUrl} style={{ ...btnStyle, fontSize: 12, padding: "7px 12px", marginTop: 8 }}>
-              Copy invite link
-            </button>
-            {qrMessage ? <div className="small" style={{ marginTop: 6, textAlign: "center" }}>{qrMessage}</div> : null}
           </div>
         ) : null}
       </div>
@@ -356,7 +359,7 @@ export default function ProfilePage() {
                   </button>
                 </div>
                 <div className="small" style={{ color: "var(--muted)", marginTop: 6 }}>
-                  After creating, use "Claim on-chain" in the history below.
+                  After creating, use &quot;Claim on-chain&quot; in the history below.
                 </div>
               </div>
             )}

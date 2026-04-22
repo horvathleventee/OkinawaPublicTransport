@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { injected, useAccount, useConnect, useDisconnect } from "wagmi";
 import { useWallet } from "../../lib/useWallet";
 import { API } from "../lib/api";
@@ -50,8 +50,12 @@ export default function Nav() {
   const [chatUnread, setChatUnread] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const navRef = useRef(null);
 
-  useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => setMounted(true));
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
 
   useEffect(() => {
     let timer;
@@ -105,6 +109,24 @@ export default function Nav() {
     };
   }, [isConnected, address]);
 
+  useEffect(() => {
+    if (!menuOpen) return;
+
+    function handleOutside(event) {
+      if (!navRef.current) return;
+      if (!navRef.current.contains(event.target)) {
+        setMenuOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleOutside);
+    document.addEventListener("touchstart", handleOutside, { passive: true });
+    return () => {
+      document.removeEventListener("mousedown", handleOutside);
+      document.removeEventListener("touchstart", handleOutside);
+    };
+  }, [menuOpen]);
+
   const connected = isConnected;
   const dotClass = connected ? "dot on" : "dot off";
   const dotTitle = connected ? "wallet connected" : "not connected";
@@ -150,12 +172,44 @@ export default function Nav() {
   }
 
   const currentTheme = THEMES.find((t) => t.id === theme) || THEMES[0];
+  const connectButton = !mounted ? (
+    <button className="nav-connect-btn" type="button" suppressHydrationWarning>
+      Connect
+    </button>
+  ) : connected ? (
+    <button
+      className="nav-connect-btn nav-connect-btn--connected"
+      type="button"
+      title="Disconnect"
+      onClick={handleDisconnect}
+    >
+      <span style={{ overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>{displayLabel}</span>
+      <span className="nav-connect-close" style={{ flexShrink: 0 }}>×</span>
+    </button>
+  ) : (
+    <button
+      className="nav-connect-btn"
+      type="button"
+      onClick={handleConnect}
+    >
+      Connect
+    </button>
+  );
 
   return (
-    <nav className="nav">
+    <nav className="nav" ref={navRef}>
       <div className="nav-left">
         <div className="brand">Green Commute</div>
         <div className={dotClass} title={dotTitle} suppressHydrationWarning />
+      </div>
+
+      <div className="nav-mobile-actions">
+        <div className="nav-mobile-only">
+          <NotificationBell />
+        </div>
+        <div className="nav-mobile-only">
+          {connectButton}
+        </div>
       </div>
 
       <button
@@ -180,31 +234,13 @@ export default function Nav() {
         <Link href="/profile" className="nav-link" onClick={() => setMenuOpen(false)}>Profile</Link>
         <Link href="/avatar" className="nav-link" onClick={() => setMenuOpen(false)}>Avatar</Link>
 
-        {!mounted ? (
-          <button className="nav-connect-btn" type="button" suppressHydrationWarning>
-            Connect
-          </button>
-        ) : connected ? (
-          <button
-            className="nav-connect-btn nav-connect-btn--connected"
-            type="button"
-            title="Disconnect"
-            onClick={handleDisconnect}
-          >
-            <span style={{ overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>{displayLabel}</span>
-            <span className="nav-connect-close" style={{ flexShrink: 0 }}>×</span>
-          </button>
-        ) : (
-          <button
-            className="nav-connect-btn"
-            type="button"
-            onClick={handleConnect}
-          >
-            Connect
-          </button>
-        )}
+        <div className="nav-desktop-only">
+          {connectButton}
+        </div>
 
-        <NotificationBell />
+        <div className="nav-desktop-only">
+          <NotificationBell />
+        </div>
 
         <button className="theme-cycle-btn" onClick={cycleTheme} type="button" title="Switch theme">
           <span className="theme-emoji">{currentTheme.emoji}</span>

@@ -50,6 +50,7 @@ export default function NotificationBell() {
   const [notifications, setNotifications] = useState([]);
   const [unread, setUnread] = useState(0);
   const [open, setOpen] = useState(false);
+  const [seenCutoffId, setSeenCutoffId] = useState(0);
   const dropdownRef = useRef(null);
   const pollRef = useRef(null);
   // The highest notification ID the user has "seen" (dropdown was opened).
@@ -58,16 +59,16 @@ export default function NotificationBell() {
 
   // On mount: restore lastSeenId from localStorage
   useEffect(() => {
-    setMounted(true);
+    const frame = window.requestAnimationFrame(() => setMounted(true));
+    return () => window.cancelAnimationFrame(frame);
   }, []);
 
   useEffect(() => {
-    if (address) lastSeenId.current = getLastSeenId(address);
+    const nextSeenId = address ? getLastSeenId(address) : 0;
+    lastSeenId.current = nextSeenId;
+    const frame = window.requestAnimationFrame(() => setSeenCutoffId(nextSeenId));
+    return () => window.cancelAnimationFrame(frame);
   }, [address]);
-
-  const computeUnread = useCallback((list) => {
-    return list.filter((n) => n.id > lastSeenId.current).length;
-  }, []);
 
   const fetchNotifications = useCallback(async () => {
     if (!isConnected || !address) {
@@ -91,9 +92,14 @@ export default function NotificationBell() {
 
   // Poll every 15s
   useEffect(() => {
-    fetchNotifications();
+    const start = window.setTimeout(() => {
+      fetchNotifications();
+    }, 0);
     pollRef.current = window.setInterval(fetchNotifications, 15000);
-    return () => window.clearInterval(pollRef.current);
+    return () => {
+      window.clearTimeout(start);
+      window.clearInterval(pollRef.current);
+    };
   }, [fetchNotifications]);
 
   // Close dropdown on outside click
@@ -112,6 +118,7 @@ export default function NotificationBell() {
     if (!address || notifications.length === 0) return;
     const maxId = Math.max(...notifications.map((n) => n.id));
     lastSeenId.current = maxId;
+    setSeenCutoffId(maxId);
     setLastSeenId(address, maxId);
     setUnread(0);
     // Best-effort server sync — fire and forget
@@ -127,6 +134,7 @@ export default function NotificationBell() {
         const maxId = Math.max(...notifications.map((n) => n.id));
         if (maxId > lastSeenId.current) {
           lastSeenId.current = maxId;
+          setSeenCutoffId(maxId);
           setLastSeenId(address, maxId);
           setUnread(0);
           fetch(`${API}/api/users/${address}/notifications/read-all`, { method: "PATCH" }).catch(() => {});
@@ -140,6 +148,7 @@ export default function NotificationBell() {
     // Ensure this notif's id is covered by lastSeenId
     if (notif.id > lastSeenId.current) {
       lastSeenId.current = notif.id;
+      setSeenCutoffId(notif.id);
       setLastSeenId(address, notif.id);
       setUnread((prev) => Math.max(0, prev - 1));
       fetch(`${API}/api/users/${address}/notifications/${notif.id}/read`, { method: "PATCH" }).catch(() => {});
@@ -183,7 +192,7 @@ export default function NotificationBell() {
               <div style={emptyStyle}>Nincsenek értesítések</div>
             ) : (
               notifications.map((n) => {
-                const isSeen = n.id <= lastSeenId.current;
+                const isSeen = n.id <= seenCutoffId;
                 return (
                   <button
                     key={n.id}
@@ -273,7 +282,7 @@ const dropdownStyle = {
   position: "absolute",
   top: "calc(100% + 8px)",
   right: 0,
-  width: 320,
+  width: "min(320px, calc(100vw - 24px))",
   maxHeight: 440,
   background: "var(--bg1)",
   border: "1px solid var(--border)",

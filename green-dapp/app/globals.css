@@ -570,6 +570,9 @@ code{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liber
   left: 50%;
   top: 50%;
 }
+.avatar-stage[data-editing="true"] {
+  touch-action: none;
+}
 /* --- top nav --- */
 .nav {
   position: sticky;
@@ -590,6 +593,14 @@ code{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liber
 
 .nav-left { display: flex; align-items: center; gap: 10px; }
 .brand { font-weight: 950; letter-spacing: .02em; }
+.nav-mobile-actions {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+.nav-mobile-only { display: none; }
+.nav-desktop-only { display: inline-flex; align-items: center; }
 
 .dot { width: 10px; height: 10px; border-radius: 999px; }
 .dot.on { background: rgba(0, 220, 140, .9); box-shadow: 0 0 0 5px rgba(0,220,140,.12); }
@@ -722,26 +733,64 @@ code{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liber
 
   .nav-left {
     flex: 1;
+    min-width: 0;
+  }
+
+  .nav-mobile-actions {
+    display: inline-flex;
+  }
+
+  .nav-mobile-only {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .nav-desktop-only {
+    display: none !important;
+  }
+
+  .nav-mobile-actions .nav-connect-btn {
+    max-width: 132px;
+    min-height: 40px;
+    padding: 8px 12px;
+    font-size: 12px;
   }
 
   .nav-hamburger {
     display: flex;
+    margin-left: 0;
   }
 
   /* Collapsed by default, expanded with .open */
   .nav-links {
-    display: none;
     width: 100%;
+    display: flex;
     flex-direction: column;
     align-items: stretch;
     gap: 6px;
-    padding-top: 10px;
+    padding-top: 0;
     border-top: 1px solid var(--nav-border);
-    margin-top: 10px;
+    margin-top: 0;
+    max-height: 0;
+    opacity: 0;
+    overflow: hidden;
+    pointer-events: none;
+    transform: translateY(-8px);
+    transition:
+      max-height 220ms ease,
+      opacity 180ms ease,
+      transform 220ms ease,
+      padding-top 220ms ease,
+      margin-top 220ms ease;
   }
 
   .nav-links.open {
-    display: flex;
+    max-height: 80vh;
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+    padding-top: 10px;
+    margin-top: 10px;
   }
 
   .nav-link {
@@ -825,6 +874,7 @@ code{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liber
 /* ── Very small screens (≤ 520px) ───────────────────────────── */
 @media (max-width: 520px) {
   .grid { grid-template-columns: repeat(1, minmax(0, 1fr)); }
+  .grid > .card { grid-column: 1 / -1 !important; }
   .metric-value { font-size: 20px; }
   .shop-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   .theme-text { display: none; }
@@ -835,6 +885,20 @@ code{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liber
   /* avatar wardrobe tighter */
   .shop-item { padding: 10px; }
   .shop-img { height: 100px; }
+  .nav {
+    gap: 10px;
+  }
+  .nav-mobile-actions {
+    gap: 6px;
+  }
+  .nav-mobile-actions .nav-link {
+    padding: 7px 8px;
+  }
+  .nav-mobile-actions .nav-connect-btn {
+    max-width: 116px;
+    padding: 8px 10px;
+    font-size: 11px;
+  }
 }
 
 /* ──────────────────────────────────────────────────────────────
@@ -980,6 +1044,12 @@ code{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liber
   align-items: center;
   gap: 6px;
 }
+.profile-hero-qr-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
 .profile-qr-label {
   font-size: 11px;
   font-weight: 800;
@@ -1114,6 +1184,37 @@ code{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liber
   .slot-tab-label { display: none; }
   .slot-tab-btn { padding: 8px 10px; gap: 0; }
   .profile-hero { padding: 16px; gap: 16px; }
+  .profile-hero-address {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+  .profile-hero-addr-short {
+    font-size: 16px;
+    line-height: 1.2;
+    word-break: break-word;
+  }
+  .profile-hero-qr {
+    flex-direction: row-reverse;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px;
+    border: 1px solid var(--ui-soft-border);
+    border-radius: 18px;
+    background: color-mix(in srgb, var(--ui-soft-bg) 75%, transparent);
+  }
+  .profile-hero-qr-meta {
+    align-items: flex-start;
+    text-align: left;
+    flex: 1;
+    min-width: 0;
+  }
+  .profile-qr-img {
+    width: 116px;
+    height: 116px;
+    flex-shrink: 0;
+  }
   .profile-stat { padding: 0 12px; }
   .profile-stat-value { font-size: 17px; }
   
@@ -1144,6 +1245,52 @@ code{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liber
 }
 
 /* ─── Shop stat strip ─────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .avatar-mobile .avatar-drag-handle {
+    width: 38px;
+    height: 38px;
+    border-width: 3px;
+    box-shadow: 0 0 0 8px rgba(6,182,212,.22);
+  }
+}
+
+@media (max-width: 640px) {
+  .avatar-mobile .avatar-editor-card {
+    max-height: none !important;
+  }
+  .avatar-mobile .avatar-share-layout {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 520px) {
+  .community-mobile .community-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 6px !important;
+    margin-top: 10px !important;
+  }
+  .community-mobile .community-summary-tile {
+    padding: 7px !important;
+    border-radius: 9px !important;
+  }
+  .community-mobile .community-summary-tile .small {
+    font-size: 9px;
+  }
+  .community-mobile .community-summary-tile div[style*="font-size: 24px"] {
+    font-size: 16px !important;
+    margin-top: 1px !important;
+  }
+  .community-mobile .community-tab-btn {
+    min-width: 0 !important;
+    padding: 7px 12px !important;
+    font-size: 12px !important;
+    gap: 6px !important;
+  }
+  .community-mobile .community-tab-btn .community-tab-badge {
+    transform: scale(.92);
+  }
+}
+
 .shop-stat-strip {
   background: var(--card-bg, rgba(15,20,40,.72));
   border: 1px solid rgba(255,255,255,.10);
@@ -1665,4 +1812,3 @@ code{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liber
   font-size: 12px;
   font-weight: 700;
 }
-

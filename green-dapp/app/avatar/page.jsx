@@ -732,6 +732,7 @@ export default function AvatarPage() {
             <div
               ref={stageRef}
               className="avatar-stage"
+              data-editing={editMode ? "true" : "false"}
               style={{
                 cursor: editMode ? "grab" : "default",
                 marginTop: 12,
@@ -791,7 +792,7 @@ export default function AvatarPage() {
         </div>
 
         {editMode ? (
-        <div className="card" style={{ gridColumn: "span 5", maxHeight: "78vh" }}>
+        <div className="card avatar-editor-card" style={{ gridColumn: "span 5", maxHeight: "78vh" }}>
           <div className="accent green" />
           <div className="card-inner" style={{ height: "100%", overflow: "auto", paddingRight: 10 }}>
             <div className="section-title">Equipped & Offsets</div>
@@ -1107,7 +1108,7 @@ export default function AvatarPage() {
               <div className="small">Save full looks, then share your avatar profile card.</div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "minmax(280px, 1.2fr) minmax(260px, .8fr)", gap: 16, marginTop: 14 }}>
+            <div className="avatar-share-layout" style={{ display: "grid", gridTemplateColumns: "minmax(280px, 1.2fr) minmax(260px, .8fr)", gap: 16, marginTop: 14 }}>
               <div style={miniPanel}>
                 <div style={{ fontWeight: 900 }}>Saved outfits</div>
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 10 }}>

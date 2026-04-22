@@ -154,7 +154,6 @@ function CommunityPageInner() {
   const summary = {
     friends: social.friends.length,
     incoming: social.incomingRequests.length,
-    outgoing: social.outgoingRequests.length,
     groups: social.groups.length,
     invites: social.pendingGroupInvites.length,
   };
@@ -519,7 +518,6 @@ function CommunityPageInner() {
   return (
     <div className="shell community-mobile">
       <Nav />
-        <Nav />
 
       <div className="topbar">
         <div className="title">
@@ -538,10 +536,9 @@ function CommunityPageInner() {
             <div className="small" style={{ marginTop: 8 }}>
               Wallet: <span className="mono">{walletLabel}</span>
             </div>
-            <div style={summaryGrid}>
+            <div className="community-summary-grid" style={summaryGrid}>
               <SummaryMini title="Friends" value={summary.friends} hint="accepted" />
               <SummaryMini title="Incoming" value={summary.incoming} hint="requests" />
-              <SummaryMini title="Outgoing" value={summary.outgoing} hint="requests" />
               <SummaryMini title="Groups" value={summary.groups} hint="joined" />
               <SummaryMini title="Invites" value={summary.invites} hint="group invites" />
             </div>
@@ -1070,7 +1067,7 @@ function CommunityPageInner() {
 
 function SummaryMini({ title, value, hint }) {
   return (
-    <div style={summaryMini}>
+    <div className="community-summary-tile" style={summaryMini}>
       <div className="small">{title}</div>
       <div style={{ fontWeight: 900, fontSize: 24, marginTop: 4 }}>{value}</div>
       <div className="small" style={{ marginTop: 4 }}>{hint}</div>
