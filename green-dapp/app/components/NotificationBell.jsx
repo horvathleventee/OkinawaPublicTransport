@@ -47,6 +47,7 @@ export default function NotificationBell() {
   const { isConnected, address } = useWallet();
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unread, setUnread] = useState(0);
   const [open, setOpen] = useState(false);
@@ -61,6 +62,16 @@ export default function NotificationBell() {
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => setMounted(true));
     return () => window.cancelAnimationFrame(frame);
+  }, []);
+
+  useEffect(() => {
+    function updateViewportMode() {
+      setIsMobileViewport(window.innerWidth <= 768);
+    }
+
+    updateViewportMode();
+    window.addEventListener("resize", updateViewportMode);
+    return () => window.removeEventListener("resize", updateViewportMode);
   }, []);
 
   useEffect(() => {
@@ -159,6 +170,18 @@ export default function NotificationBell() {
 
   if (!mounted || !isConnected) return null;
 
+  const resolvedDropdownStyle = isMobileViewport
+    ? {
+        ...dropdownStyle,
+        position: "fixed",
+        top: 78,
+        left: 12,
+        right: 12,
+        width: "auto",
+        maxWidth: "none",
+      }
+    : dropdownStyle;
+
   return (
     <div ref={dropdownRef} style={containerStyle}>
       {/* Bell button */}
@@ -177,7 +200,7 @@ export default function NotificationBell() {
 
       {/* Dropdown */}
       {open && (
-        <div style={dropdownStyle}>
+        <div style={resolvedDropdownStyle}>
           <div style={dropdownHeaderStyle}>
             <span style={{ fontWeight: 700, fontSize: 14 }}>Értesítések</span>
             {notifications.length > 0 && (
