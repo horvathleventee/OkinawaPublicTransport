@@ -123,4 +123,4 @@ This is an actively iterated university / portfolio-style project with a strong 
 
 ## Author
 
-Built by Horvath Levente.
+Built by Horvath Levente
